@@ -28,3 +28,7 @@ Traceback (most recent call last):
                                                                               └ 0
 
 NameError: name 'reqmuests' is not defined
+2023-05-25 08:05:06.082 | INFO     | __main__:run:25 - Api up. Time taken: 0:00:00.029480
+2023-05-25 08:05:07.713 | INFO     | __main__:run:25 - Api up. Time taken: 0:00:00.024573
+2023-05-25 08:05:08.595 | INFO     | __main__:<module>:68 - Parsing Complete. 1000 items parsed, with a total time taken of 0:00:00.300226.
+Fastest time: 0:00:00.000139 | Median time: 0:00:00.000278 | Slowest time: 0:00:00.000796
