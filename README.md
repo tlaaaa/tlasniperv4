@@ -7,4 +7,8 @@ there are no plans to create a mod anytime soon, but you never know
 * well there aren't really any right now
 * im not sure why i'm writing a markdown thing
 
-## [join the discord](https://discord.gg/yeet)
+## [join the discord](https://discord.gg/rZ6GxpqRgr)
+
+
+### credits ¿
+ * nbtlib used from https://github.com/vberlier/nbtlib

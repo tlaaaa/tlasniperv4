@@ -21,6 +21,6 @@ def auc(item, isScan):
       #not necessary, slows down code
       #with open('cache/item.json', "w") as file:
       #  json.dump(x_object, file, ensure_ascii=False, indent=4)
-    except Exception as e:
+    except Exception:
       logger.info("error occured while printing bytes "+item["item_bytes"]+" item "+item["item_name"])
   
