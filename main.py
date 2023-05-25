@@ -43,23 +43,27 @@ def getApiPage(page):
     api = requests.get("https://api.hypixel.net/skyblock/auctions?page="+str(page)).json()
     return api
   except Exception as e:
-    logger.debug("errer")
+    logger.opt(exception=e).error("error occured while requesting api")
   #print("Request Returned. Time taken: "+ str(datetime.datetime.now() - start_time))
 
 api = getApiPage(0)
-
-####REMOVE AFTER WORKING
-with open('cache/api.json', "w") as file:
-  json.dump(api, file, ensure_ascii=False, indent=4)  
-checkpoint = datetime.datetime.now()
-beforeparse = datetime.datetime.now()
-times = []
-
-for item in api["auctions"]:
-  auc(item, False)
-  timetaken = datetime.datetime.now() - checkpoint
-  #print("Parsed an item. Time taken: "+ str(timetaken))
+if api['success'] or api["lastupdated"] != lastUpdated:
+  lastUpdated = api["lastUpdated"]
+  
+  ####REMOVE AFTER WORKING
+  with open('cache/api.json', "w") as file:
+    json.dump(api, file, ensure_ascii=False, indent=4)  
+  
   checkpoint = datetime.datetime.now()
-  times.append(timetaken)
-times.sort()
-logger.info("Parsing Complete. "+str(len(api["auctions"]))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+"  Median time: "+str(times[int(len(api["auctions"]) / 2)]) + "  Slowest time: "+str(times[-1]))
+  beforeparse = datetime.datetime.now()
+  times = []
+  
+  for item in api["auctions"]:
+    auc(item, False)
+    timetaken = datetime.datetime.now() - checkpoint
+    #print("Parsed an item. Time taken: "+ str(timetaken))
+    checkpoint = datetime.datetime.now()
+    times.append(timetaken)
+  times.sort()
+  logger.info("Parsing Complete. "+str(len(api["auctions"]))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(api["auctions"]) / 2)]) + " | Slowest time: "+str(times[-1]))
+  

@@ -4,3 +4,4 @@ replit.nix
 poetry.lock
 pyproject.toml
 .upm
+out.log
