@@ -20,7 +20,6 @@ class MyHandler(BaseHTTPRequestHandler):
         except:
           pass
 
-
 def run():
     logger.info("Api up. Time taken: "+ str(datetime.datetime.now() - start_time))
     httpd = HTTPServer(('', 8000), MyHandler)
