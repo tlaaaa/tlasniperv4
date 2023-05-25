@@ -1,0 +1,12 @@
+bot.js
+.replit
+replit.nix
+poetry.lock
+pyproject.toml
+.upm/
+out.log
+__pycache__/
+venv/
+.config/
+.git/
+.breakpoints

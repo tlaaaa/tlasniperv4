@@ -1,0 +1,48 @@
+{
+    "i": [
+        {
+            "id": 397,
+            "Count": 1,
+            "tag": {
+                "HideFlags": 254,
+                "SkullOwner": {
+                    "Id": "9d3957af-7899-38f7-8585-446f2268b10b",
+                    "Properties": {
+                        "textures": [
+                            {
+                                "Value": "ewogICJ0aW1lc3RhbXAiIDogMTY0MTA5ODY0NTEyOCwKICAicHJvZmlsZUlkIiA6ICIwMGZiNTRiOWI4NDA0YTA0YTViMmJhMzBlYzBlYTAxMiIsCiAgInByb2ZpbGVOYW1lIiA6ICJrbGxveWQ3MCIsCiAgInNpZ25hdHVyZVJlcXVpcmVkIiA6IHRydWUsCiAgInRleHR1cmVzIiA6IHsKICAgICJTS0lOIiA6IHsKICAgICAgInVybCIgOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9lNWViZjZmMTQzMDFkM2ViZDE0NTMzNTg3ZDJhMmQ0ODIzNDQzM2IxN2M5ZDJmMTM5MzRiN2NhYjQ1OGVlMjY3IiwKICAgICAgIm1ldGFkYXRhIiA6IHsKICAgICAgICAibW9kZWwiIDogInNsaW0iCiAgICAgIH0KICAgIH0KICB9Cn0="
+                            }
+                        ]
+                    }
+                },
+                "display": {
+                    "Lore": [
+                        "§7Magic Find: §a+0.25",
+                        "",
+                        "§7Grants an additional §c1%",
+                        "§c§7charge when filling empty",
+                        "§7thunder bottles.",
+                        "",
+                        "§7Charge up by combining a",
+                        "§7§eThunder in a Bottle§7 (Full)",
+                        "§7with this item in an anvil.",
+                        "",
+                        "§7Charge: §e0 Thunder",
+                        "",
+                        "§9Reach 150k Charge for +1 Rarity!",
+                        "",
+                        "§9§l§ka§r §9§l§9§lRARE ACCESSORY §9§l§ka"
+                    ],
+                    "Name": "§9Pulse Ring"
+                },
+                "ExtraAttributes": {
+                    "rarity_upgrades": 1,
+                    "id": "PULSE_RING",
+                    "uuid": "0e4b4f0b-bcf7-4114-bcd9-bf1ed954005b",
+                    "timestamp": "5/19/22 2:10 PM"
+                }
+            },
+            "Damage": 3
+        }
+    ]
+}
