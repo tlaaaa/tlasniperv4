@@ -47,6 +47,7 @@ def getApiPage(page):
   #print("Request Returned. Time taken: "+ str(datetime.datetime.now() - start_time))
 
 api = getApiPage(0)
+
 ####REMOVE AFTER WORKING
 with open('cache/api.json', "w") as file:
   json.dump(api, file, ensure_ascii=False, indent=4)  
