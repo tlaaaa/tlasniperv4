@@ -1,0 +1,3 @@
+2023-05-25 05:32:41.666 | INFO     | __main__:run:25 - Api up. Time taken: 0:00:00.080236
+2023-05-25 05:32:42.975 | INFO     | __main__:<module>:65 - Parsing Complete. 1000 items parsed, with a total time taken of 0:00:00.332861.
+Fastest time: 0:00:00.000140  Median time: 0:00:00.000292  Slowest time: 0:00:00.020045
