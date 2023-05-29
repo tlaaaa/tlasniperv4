@@ -11,3 +11,5 @@ venv/
 .git/
 .breakpoints
 cache/*
+logs/*
+data/*

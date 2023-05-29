@@ -36,11 +36,13 @@ import requests
 import base64
 import nbtlib
 import io
+import re
 
 #variable init
 times = []
 lastUpdated = 0
 nameLookup = {}
+lbin = {}
 lastTry = 0
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
@@ -48,6 +50,10 @@ with open("cache/nameLookup.json", "r") as f:
 #functions!!
 def milliTime():
   return (int(time.time()*1000))
+
+def removeFormatting(string):
+  unformattedString = re.sub("§.", "", string)
+  return unformattedString
 
 def getApiPage(page):
   try:
@@ -75,7 +81,7 @@ async def fetchAll(pages):
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
 def auc(item, isScan):
-  global nameLookup
+  global nameLookup, LBIN
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
   if item["bin"]:
@@ -96,44 +102,87 @@ def auc(item, isScan):
           nameLookup[itemName] = itemID
           with open('cache/item.json', "w") as file:
             json.dump(x_object, file, ensure_ascii=False, indent=4)
-        #yep so we got the ID
+        #yep so we got the ID lets just do lbin stuff
+        if itemID in LBIN:
+          if LBIN[itemID] > startingBid:
+            LBIN[itemID] = startingBid
+        else:
+          LBIN[itemID] = startingBid
       
-        #not necessary, slows down code
-
       except Exception:
         logger.opt(exception=Exception).error("error occured while printing bytes "+item["item_bytes"]+" item "+item["item_name"])
         
-  
+def doEnded():
+  try:
+    start_of_ended = datetime.datetime.now()
+    recentlyEnded = requests.get("https://api.hypixel.net/skyblock/auctions_ended").json()
+    with open("cache/recentlyEnded.json", "w") as f:
+      f.truncate(0)
+      json.dump(recentlyEnded, f, indent=4, ensure_ascii=False)
+    for item in recentlyEnded["auctions"]:
+      x_bytes = base64.b64decode(item["item_bytes"])
+      x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+      itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+      #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
+    logger.info("Fetched Ended Auctions, "+str(len(recentlyEnded["auctions"]))+" auctions found. Time Taken: "+str(datetime.datetime.now() - start_of_ended))
+  except Exception:
+    logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry
+  global lastUpdated, times, nameLookup, lastTry, LBIN
   api = getApiPage(0)
-  if api['success'] and api["lastUpdated"] != lastUpdated:
-    lastUpdated = api["lastUpdated"]
-    times = []
-    beforeparse = datetime.datetime.now()
-    ####REMOVE AFTER WORKING
-    with open('cache/api.json', "w") as file:
-      json.dump(api, file, ensure_ascii=False, indent=4)  
+  if api != None:
+    if api['success'] and ( api["lastUpdated"] != lastUpdated ):
+      lastUpdated = api["lastUpdated"]
+      logger.info("time after api update: "+str(milliTime() - lastUpdated))
+      times = []
+      LBIN = {}
+      beforeparse = datetime.datetime.now()
+      ####REMOVE AFTER WORKING
+      with open('cache/api.json', "w") as file:
+        json.dump(api, file, ensure_ascii=False, indent=4)  
+  
+        loop = asyncio.get_event_loop()
+      asyncio.set_event_loop(loop)
+      future = asyncio.ensure_future(fetchAll(api["totalPages"]))
+      loop.run_until_complete(future)
+      #await fetch_tasks
+      times.sort()
+      logger.info("Fetching Complete. "+str(len(times))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
+      logger.info("lastUpdated: "+str(lastUpdated))
 
-      loop = asyncio.get_event_loop()
-    asyncio.set_event_loop(loop)
-    future = asyncio.ensure_future(fetchAll(api["totalPages"]))
-    loop.run_until_complete(future)
-    #await fetch_tasks
-    times.sort()
-    logger.info("Parsing Complete. "+str(len(times))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
-    with open("cache/nameLookup.json", "w") as f:
-      f.truncate(0)
-      json.dump(nameLookup, f, indent=4, ensure_ascii=False)
+      with open("cache/nameLookup.json", "w") as f:
+        f.truncate(0)
+        json.dump(nameLookup, f, indent=4, ensure_ascii=False)
+      try:
+        with open("data/lbin.json", "r") as lbinfile:
+          avglbin = json.load(lbinfile)
+        for id in LBIN:
+          if id in avglbin:
+            avglbin[id] = int(avglbin[id] - avglbin[id]/1000 + LBIN[id]/1000)
+          else:
+            avglbin[id] = LBIN[id]
+        with open("data/lbin.json", "w") as lbinfile:
+          lbinfile.truncate(0)
+          json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
+      except Exception:
+        logger.opt(exception=Exception).error("Something went wrong while saving average LBIN data.")
+        #add failsafe here!
+
+      #https://api.hypixel.net/skyblock/auctions_ended
+      doEnded()
+    else:
+      lastTry = milliTime()
+      print("no new data.. trying again soon..")
   else:
-    lastTry = milliTime()
+    logger.info("retrying in 5 seconds")
+    lastTry = milliTime() + 5000
   
 main()
 
 while True:
-  if lastTry < milliTime() + 500:
-    if (lastUpdated < milliTime() + 59000):
+  if lastTry < milliTime() - 800:
+    if (lastUpdated < milliTime() - 59000):
       main()
       
     
