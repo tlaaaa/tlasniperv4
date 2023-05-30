@@ -10,3 +10,6 @@ venv/
 .config/
 .git/
 .breakpoints
+cache/*
+logs/*
+data/*
