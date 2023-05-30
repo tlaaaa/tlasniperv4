@@ -9,6 +9,7 @@ logger.add("logs/out.log", enqueue=True, rotation="1 MB", retention=10, backtrac
 logger.add(sys.stderr, colorize=True, format="| <g><d>{time:HH:mm:ss}</d></g> | <g><b>{level}</b></g> | {message} |", level="INFO")
 
 start_time = datetime.datetime.now()
+
 #Keeps thing running on replit, remove if you don't need
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
@@ -41,11 +42,15 @@ import re
 #variable init
 times = []
 lastUpdated = 0
+updateTime = 0
 nameLookup = {}
-lbin = {}
+LBIN = {}
 lastTry = 0
+count = 0
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
+with open("data/lbin.json", "r") as f:
+  avglbin = json.load(f)
 
 #functions!!
 def milliTime():
@@ -81,27 +86,37 @@ async def fetchAll(pages):
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
 def auc(item, isScan):
-  global nameLookup, LBIN
+  global nameLookup, LBIN, lastUpdated, count, avglbin
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
+
   if item["bin"]:
     itemName = str(item["item_name"])
     startingBid = int(item["starting_bid"])
+    try:
+      if "[Lvl" in itemName:
+        itemID = "PET"
+      elif itemName in nameLookup:
+        itemID = nameLookup[itemName]
+      else:
+        x_bytes = base64.b64decode(item["item_bytes"])
+        x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+        itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+        nameLookup[itemName] = itemID
+        #with open('cache/item.json', "w") as file:
+        #  json.dump(x_object, file, ensure_ascii=False, indent=4)
+    except Exception:
+      logger.opt(exception=Exception).error("error occured while getting item id "+item["item_bytes"]+" item "+item["item_name"])
+    
     if isScan:
-      pass
+      if item["start"] > lastUpdated - 60_000:
+        count = count + 1
+        if itemID in avglbin:
+          profit = avglbin[itemID] - startingBid
+          if profit > 500_000:
+            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+str(startingBid)+" value apparently: "+str(avglbin[itemID])+" profit: "+str(profit)+"\nlowest bin: "+str(LBIN[itemID])+" difference from lbin: "+str(LBIN[itemID]-startingBid))
+    
     elif itemName != None:
-      try:
-        if "[Lvl" in itemName:
-          itemID = "PET"
-        elif itemName in nameLookup:
-          itemID = nameLookup[itemName]
-        else:
-          x_bytes = base64.b64decode(item["item_bytes"])
-          x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
-          itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
-          nameLookup[itemName] = itemID
-          with open('cache/item.json', "w") as file:
-            json.dump(x_object, file, ensure_ascii=False, indent=4)
         #yep so we got the ID lets just do lbin stuff
         if itemID in LBIN:
           if LBIN[itemID] > startingBid:
@@ -109,8 +124,7 @@ def auc(item, isScan):
         else:
           LBIN[itemID] = startingBid
       
-      except Exception:
-        logger.opt(exception=Exception).error("error occured while printing bytes "+item["item_bytes"]+" item "+item["item_name"])
+     
         
 def doEnded():
   try:
@@ -129,12 +143,27 @@ def doEnded():
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
       lastUpdated = api["lastUpdated"]
       logger.info("time after api update: "+str(milliTime() - lastUpdated))
+      if updateTime == 0:
+        updateTime = lastUpdated
+      else:
+        updateTime = milliTime()
+      ##do flip calculations here
+        count = 0
+        times = []
+        beforescan = datetime.datetime.now()
+        for item in api["auctions"]:
+          itemStart = datetime.datetime.now()
+          auc(item, True)
+          times.append(datetime.datetime.now() - itemStart)
+        logger.info(str(count)+" new items have been scanned, with a total time taken of "+str(datetime.datetime.now() - beforescan)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
+      
+      #caching prices here yeah
       times = []
       LBIN = {}
       beforeparse = datetime.datetime.now()
@@ -142,7 +171,7 @@ def main():
       with open('cache/api.json', "w") as file:
         json.dump(api, file, ensure_ascii=False, indent=4)  
   
-        loop = asyncio.get_event_loop()
+      loop = asyncio.get_event_loop()
       asyncio.set_event_loop(loop)
       future = asyncio.ensure_future(fetchAll(api["totalPages"]))
       loop.run_until_complete(future)
@@ -167,9 +196,9 @@ def main():
           json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
       except Exception:
         logger.opt(exception=Exception).error("Something went wrong while saving average LBIN data.")
-        #add failsafe here!
+        #add failsafe here! wait where is the failsafe
 
-      #https://api.hypixel.net/skyblock/auctions_ended
+      #going through and getting data from sold auctions
       doEnded()
     else:
       lastTry = milliTime()
@@ -181,8 +210,8 @@ def main():
 main()
 
 while True:
-  if lastTry < milliTime() - 800:
-    if (lastUpdated < milliTime() - 59000):
+  if lastTry < milliTime() - 500:
+    if (updateTime < milliTime() - 59_000):
       main()
       
     
