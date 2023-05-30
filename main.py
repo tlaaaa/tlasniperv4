@@ -51,6 +51,8 @@ with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
 with open("data/lbin.json", "r") as f:
   avglbin = json.load(f)
+with open("data/volume.json", "r") as f:
+  volume = json.load(f)
 
 #functions!!
 def milliTime():
@@ -111,10 +113,10 @@ def auc(item, isScan):
     if isScan:
       if item["start"] > lastUpdated - 60_000:
         count = count + 1
-        if itemID in avglbin:
+        if itemID in avglbin and itemID in LBIN and itemID in volume:
           profit = avglbin[itemID] - startingBid
           if profit > 500_000:
-            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+str(startingBid)+" value apparently: "+str(avglbin[itemID])+" profit: "+str(profit)+"\nlowest bin: "+str(LBIN[itemID])+" difference from lbin: "+str(LBIN[itemID]-startingBid))
+            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+str(startingBid)+" value apparently: "+str(avglbin[itemID])+" profit: "+str(profit)+"\nlowest bin: "+str(LBIN[itemID])+" difference from lbin: "+str(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]))
     
     elif itemName != None:
         #yep so we got the ID lets just do lbin stuff
@@ -127,6 +129,7 @@ def auc(item, isScan):
      
         
 def doEnded():
+  global volume
   try:
     start_of_ended = datetime.datetime.now()
     recentlyEnded = requests.get("https://api.hypixel.net/skyblock/auctions_ended").json()
@@ -138,12 +141,16 @@ def doEnded():
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
       itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
       #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
+      if itemID in volume:
+        volume[itemID] = volume[itemID] + 1
+      else:
+        volume[itemID] = 0
     logger.info("Fetched Ended Auctions, "+str(len(recentlyEnded["auctions"]))+" auctions found. Time Taken: "+str(datetime.datetime.now() - start_of_ended))
   except Exception:
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
@@ -194,6 +201,16 @@ def main():
         with open("data/lbin.json", "w") as lbinfile:
           lbinfile.truncate(0)
           json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
+        for item in volume:
+          if volume[item] > 50:
+            volume[item] = 50
+          elif volume[item] < 0:
+            volume[item] = 0
+          else:
+            volume[item] = volume[item] - 0.003
+        with open("data/volume.json", "w") as volumefile:
+          volumefile.truncate(0)
+          json.dump(volume, volumefile, indent=2, ensure_ascii=False)
       except Exception:
         logger.opt(exception=Exception).error("Something went wrong while saving average LBIN data.")
         #add failsafe here! wait where is the failsafe
@@ -206,12 +223,18 @@ def main():
   else:
     logger.info("retrying in 5 seconds")
     lastTry = milliTime() + 5000
-  
-main()
+
+try:
+  main()
+except Exception:
+  logger.opt(exception=Exception).error("uncaught exception at some point in main()...")
 
 while True:
   if lastTry < milliTime() - 500:
     if (updateTime < milliTime() - 59_000):
-      main()
+      try:
+        main()
+      except Exception:
+        logger.opt(exception=Exception).error("uncaught exception at some point in main()...")
       
     
