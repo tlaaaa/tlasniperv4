@@ -38,6 +38,7 @@ import base64
 import nbtlib
 import io
 import re
+from collections import Counter
 
 #variable init
 times = []
@@ -47,17 +48,32 @@ nameLookup = {}
 LBIN = {}
 lastTry = 0
 count = 0
+recentSellers = []
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
 with open("data/lbin.json", "r") as f:
   avglbin = json.load(f)
 with open("data/volume.json", "r") as f:
   volume = json.load(f)
+with open("data/sold.json", "r") as f:
+  avgsold = json.load(f)
 
 #functions!!
 def milliTime():
   return (int(time.time()*1000))
 
+def formatNumber(number):
+  number = round(number/1000, 0)*1000
+  if number / 1_000_000_000 > 1 or number / 1_000_000_000 < -1:
+    formattedNumber = str(round(number / 1_000_000_000, 2)) + "b"
+  elif number / 1_000_000 > 1 or number / 1_000_000 < -1:
+    formattedNumber = str(round(number / 1_000_000, 2)) + "m"
+  elif number / 1_000 > 1 or number / 1_000 < -1:
+    formattedNumber = str(round(number / 1_000, 2)) + "k"
+  else:
+    formattedNumber = str(round(number, 0))
+  return formattedNumber
+  
 def removeFormatting(string):
   unformattedString = re.sub("§.", "", string)
   return unformattedString
@@ -97,7 +113,7 @@ def auc(item, isScan):
     startingBid = int(item["starting_bid"])
     try:
       if "[Lvl" in itemName:
-        itemID = "PET"
+        itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
       elif itemName in nameLookup:
         itemID = nameLookup[itemName]
       else:
@@ -115,8 +131,8 @@ def auc(item, isScan):
         count = count + 1
         if itemID in avglbin and itemID in LBIN and itemID in volume:
           profit = avglbin[itemID] - startingBid
-          if profit > 500_000:
-            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+str(startingBid)+" value apparently: "+str(avglbin[itemID])+" profit: "+str(profit)+"\nlowest bin: "+str(LBIN[itemID])+" difference from lbin: "+str(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]))
+          if profit > 500_000 and volume[itemID] > 45 and LBIN[itemID] > startingBid + 300_000 and profit/avglbin[itemID] > 0.05:
+            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]))
     
     elif itemName != None:
         #yep so we got the ID lets just do lbin stuff
@@ -129,7 +145,7 @@ def auc(item, isScan):
      
         
 def doEnded():
-  global volume
+  global volume, avgsold, recentSellers
   try:
     start_of_ended = datetime.datetime.now()
     recentlyEnded = requests.get("https://api.hypixel.net/skyblock/auctions_ended").json()
@@ -141,10 +157,20 @@ def doEnded():
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
       itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
       #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
+      recentSellers.append(item["seller"])
       if itemID in volume:
         volume[itemID] = volume[itemID] + 1
       else:
         volume[itemID] = 0
+      if itemID in avgsold:
+        avgsold[itemID] = int(avgsold[itemID] * 0.96 + item["price"] * 0.04)
+      else:
+        avgsold[itemID] = item["price"]
+    if len(recentSellers) > 1000:
+      recentSellers = recentSellers[-999:]
+    sellerCount = Counter(recentSellers)
+    print(sellerCount.most_common(10))
+    
     logger.info("Fetched Ended Auctions, "+str(len(recentlyEnded["auctions"]))+" auctions found. Time Taken: "+str(datetime.datetime.now() - start_of_ended))
   except Exception:
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
@@ -186,6 +212,8 @@ def main():
       times.sort()
       logger.info("Fetching Complete. "+str(len(times))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
       logger.info("lastUpdated: "+str(lastUpdated))
+      
+      doEnded()
 
       with open("cache/nameLookup.json", "w") as f:
         f.truncate(0)
@@ -195,7 +223,12 @@ def main():
           avglbin = json.load(lbinfile)
         for id in LBIN:
           if id in avglbin:
-            avglbin[id] = int(avglbin[id] - avglbin[id]/1000 + LBIN[id]/1000)
+            if avglbin[id] > LBIN[id] * 2:
+              avglbin[id] = int(avglbin[id] - avglbin[id]/20 + LBIN[id]/20)
+            elif avglbin[id] > LBIN[id] * 1.3:
+              avglbin[id] = int(avglbin[id] - avglbin[id]/250 + LBIN[id]/250)
+            else:
+              avglbin[id] = int(avglbin[id] - avglbin[id]/1000 + LBIN[id]/1000)
           else:
             avglbin[id] = LBIN[id]
         with open("data/lbin.json", "w") as lbinfile:
@@ -211,12 +244,12 @@ def main():
         with open("data/volume.json", "w") as volumefile:
           volumefile.truncate(0)
           json.dump(volume, volumefile, indent=2, ensure_ascii=False)
+        with open("data/sold.json", "w") as soldfile:
+          soldfile.truncate(0)
+          json.dump(avgsold, soldfile, indent=2, ensure_ascii=False)
       except Exception:
         logger.opt(exception=Exception).error("Something went wrong while saving average LBIN data.")
         #add failsafe here! wait where is the failsafe
-
-      #going through and getting data from sold auctions
-      doEnded()
     else:
       lastTry = milliTime()
       print("no new data.. trying again soon..")
@@ -236,5 +269,4 @@ while True:
         main()
       except Exception:
         logger.opt(exception=Exception).error("uncaught exception at some point in main()...")
-      
     
