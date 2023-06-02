@@ -10,27 +10,6 @@ logger.add(sys.stderr, colorize=True, format="| <g><d>{time:HH:mm:ss}</d></g> | 
 
 start_time = datetime.datetime.now()
 
-#Keeps thing running on replit, remove if you don't need
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from threading import Thread
-class MyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        try:
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(bytes("a", 'utf8'))
-        except:
-          pass
-
-def run():
-    logger.info("Api up. Time taken: "+ str(datetime.datetime.now() - start_time))
-    httpd = HTTPServer(('', 8000), MyHandler)
-    httpd.serve_forever()
-
-t = Thread(target=run)
-t.start()
-
 #real code starts here
 import json
 import requests
@@ -131,7 +110,7 @@ def auc(item, isScan):
         count = count + 1
         if itemID in avglbin and itemID in LBIN and itemID in volume:
           profit = avglbin[itemID] - startingBid
-          if profit > 500_000 and volume[itemID] > 45 and LBIN[itemID] > startingBid + 300_000 and profit/avglbin[itemID] > 0.05:
+          if profit > 500_000 and volume[itemID] > 20 and LBIN[itemID] > startingBid + 300_000 and profit/avglbin[itemID] > 0.05:
             print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]))
     
     elif itemName != None:
@@ -169,7 +148,7 @@ def doEnded():
     if len(recentSellers) > 1000:
       recentSellers = recentSellers[-999:]
     sellerCount = Counter(recentSellers)
-    print(sellerCount.most_common(10))
+    #print(sellerCount.most_common(10))
     
     logger.info("Fetched Ended Auctions, "+str(len(recentlyEnded["auctions"]))+" auctions found. Time Taken: "+str(datetime.datetime.now() - start_of_ended))
   except Exception:
@@ -204,7 +183,7 @@ def main():
       with open('cache/api.json', "w") as file:
         json.dump(api, file, ensure_ascii=False, indent=4)  
   
-      loop = asyncio.get_event_loop()
+      loop = asyncio.new_event_loop()
       asyncio.set_event_loop(loop)
       future = asyncio.ensure_future(fetchAll(api["totalPages"]))
       loop.run_until_complete(future)
@@ -235,12 +214,12 @@ def main():
           lbinfile.truncate(0)
           json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
         for item in volume:
-          if volume[item] > 50:
-            volume[item] = 50
+          if volume[item] > 100:
+            volume[item] = 100
           elif volume[item] < 0:
             volume[item] = 0
           else:
-            volume[item] = volume[item] - 0.003
+            volume[item] = volume[item] - volume[item]/1440
         with open("data/volume.json", "w") as volumefile:
           volumefile.truncate(0)
           json.dump(volume, volumefile, indent=2, ensure_ascii=False)
