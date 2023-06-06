@@ -2,6 +2,21 @@ const http = require('http');
 const WebSocketServer = require('websocket').server;
 const fs = require('fs')
 
+const { Client, Events, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+var sendChannel
+
+client.on('ready', client => {
+  console.log(`Ready! Logged in as ${client.user.tag}`);
+  var startedEmbed = new EmbedBuilder().setColor(0x000000).setTitle('tlasniperv4 is now online!').setTimestamp()
+  sendChannel = client.channels.cache.get('1040154468370632714')
+  sendChannel.send({ embeds: [startedEmbed] });
+  setInterval(checkFile, 10);
+});
+
+var lastUpdate = 0;
+
 function writeHtml(outputStream) {
     const inputStream = fs.createReadStream('index.html')
 
@@ -39,6 +54,7 @@ wsServer.on('request', function(request) {
 });
 
 function checkFile() {
+  if (Date.now() > lastUpdate + 59000) {
     fs.readFile('flips.json', 'utf8', function(err, data){
       if (err) {
         return console.error(err);
@@ -48,9 +64,29 @@ function checkFile() {
         wsServer.broadcast(JSON.stringify(data))
         fs.truncate("flips.json", 0, function() {
           console.log(data)
+          lastUpdate = Date.now()
         })
+        var embed = new EmbedBuilder().setColor(0x000000).setTitle('omg new flips').setTimestamp()
+        data.flips.forEach((flip) => {
+            if (flip.target < 10000000){
+              var profit = (flip.target - flip.startingBid)*0.98
+            } else if (flip.target < 100000000){
+              var profit = (flip.target - flip.startingBid)*0.97
+            } else {
+              var profit = (flip.target - flip.startingBid)*0.965
+            }
+            profit = Math.round(profit/1000)*1000
+          	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
+        });
+        try {
+        sendChannel.send({ embeds: [embed] });
+        } catch (error) {
+          console.log("uh oh")
+          console.log(error)
+        }
       }
 });
 }
+}
 
-setInterval(checkFile, 10);
+client.login(process.env.TOKEN);

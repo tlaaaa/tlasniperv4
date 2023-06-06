@@ -28,6 +28,7 @@ LBIN = {}
 lastTry = 0
 count = 0
 recentSellers = []
+flips = []
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
 with open("data/lbin.json", "r") as f:
@@ -57,6 +58,15 @@ def removeFormatting(string):
   unformattedString = re.sub("§.", "", string)
   return unformattedString
 
+def handler(obj):
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    elif isinstance(obj, ...):
+        return ...
+    else:
+        raise TypeError
+
+
 def getApiPage(page):
   try:
     api = requests.get("https://api.hypixel.net/skyblock/auctions?page="+str(page)).json()
@@ -83,16 +93,24 @@ async def fetchAll(pages):
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
 def auc(item, isScan):
-  global nameLookup, LBIN, lastUpdated, count, avglbin
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
 
   if item["bin"]:
     itemName = str(item["item_name"])
     startingBid = int(item["starting_bid"])
+    itemLore = str(item["item_lore"])
     try:
       if "[Lvl" in itemName:
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
+        petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
+        petCandied = bool("Pet Candy Used" in itemLore)
+        if ("✦" in itemName):
+          skin = str()
+        else:
+          skin = None
+        #print(petLevel)
       elif itemName in nameLookup:
         itemID = nameLookup[itemName]
       else:
@@ -110,8 +128,21 @@ def auc(item, isScan):
         count = count + 1
         if itemID in avglbin and itemID in LBIN and itemID in volume:
           profit = avglbin[itemID] - startingBid
-          if profit > 500_000 and volume[itemID] > 20 and LBIN[itemID] > startingBid + 300_000 and profit/avglbin[itemID] > 0.05:
-            print("flip!!! "+itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]))
+          lbinProfit = LBIN[itemID] - startingBid
+          if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.07 and lbinProfit/LBIN[itemID] > 0.06:
+            if LBIN[itemID] > avglbin[itemID] * 1.2:
+              target = (LBIN[itemID] + avglbin[itemID])/2
+            else:
+              target = LBIN[itemID] * 0.998 - 1000
+            target = int(int(target / 10_000) * 10_000 - 1)
+            print(itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]) + " target: "+str(target))
+            flips.append({
+              "itemName": itemName,
+              "id": item["uuid"],
+              "startingBid": startingBid,
+              "target": target,
+              "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
+            })
     
     elif itemName != None:
         #yep so we got the ID lets just do lbin stuff
@@ -120,6 +151,7 @@ def auc(item, isScan):
             LBIN[itemID] = startingBid
         else:
           LBIN[itemID] = startingBid
+        
       
      
         
@@ -155,7 +187,7 @@ def doEnded():
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
@@ -168,13 +200,20 @@ def main():
       ##do flip calculations here
         count = 0
         times = []
+        flips = []
         beforescan = datetime.datetime.now()
         for item in api["auctions"]:
           itemStart = datetime.datetime.now()
           auc(item, True)
           times.append(datetime.datetime.now() - itemStart)
         logger.info(str(count)+" new items have been scanned, with a total time taken of "+str(datetime.datetime.now() - beforescan)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
-      
+      #print(flips)
+      if len(flips) > 0:
+        payload = {
+          "flips": flips
+        }
+        with open("flips.json", "w") as file:
+          json.dump(payload, file, ensure_ascii=False)
       #caching prices here yeah
       times = []
       LBIN = {}
