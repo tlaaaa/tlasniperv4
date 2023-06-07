@@ -37,6 +37,10 @@ with open("data/volume.json", "r") as f:
   volume = json.load(f)
 with open("data/sold.json", "r") as f:
   avgsold = json.load(f)
+with open("cache/skinLookup.json", "r") as f:
+  skinLookup = json.load(f)
+with open("cache/heldItemLookup.json", "r") as f:
+  heldItemLookup = json.load(f)
 
 #functions!!
 def milliTime():
@@ -93,7 +97,7 @@ async def fetchAll(pages):
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
 def auc(item, isScan):
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
 
@@ -106,11 +110,29 @@ def auc(item, isScan):
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
         petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
         petCandied = bool("Pet Candy Used" in itemLore)
+        #print(petLevel)
         if ("✦" in itemName):
-          skin = str()
+          firstLine = itemLore.split("\n\n")[0]
+          if firstLine+itemID in skinLookup:
+            skin = skinLookup[firstLine+itemID]
+          else:
+            x_bytes = base64.b64decode(item["item_bytes"])
+            x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+            skin = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"skin\":\"")[1].split("\",")[0]
+            skinLookup[firstLine+itemID] = skin
         else:
           skin = None
-        #print(petLevel)
+        if ("Held Item:") in itemLore:
+          heldLine = itemLore.split("Held Item: ")[1].split("\n")[0]
+          if heldLine in heldItemLookup:
+            heldItem = heldItemLookup[heldLine]
+          else:
+            x_bytes = base64.b64decode(item["item_bytes"])
+            x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+            heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
+            heldItemLookup[heldLine] = heldItem
+        else:
+          heldItem = None
       elif itemName in nameLookup:
         itemID = nameLookup[itemName]
       else:
@@ -144,7 +166,7 @@ def auc(item, isScan):
               "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
             })
     
-    elif itemName != None:
+    else:
         #yep so we got the ID lets just do lbin stuff
         if itemID in LBIN:
           if LBIN[itemID] > startingBid:
@@ -167,6 +189,9 @@ def doEnded():
       x_bytes = base64.b64decode(item["item_bytes"])
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
       itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+      itemName = removeFormatting(x_object["i"][0]["tag"]["display"]["Name"])
+      if "[Lvl" in itemName:
+        itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
       #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
       recentSellers.append(item["seller"])
       if itemID in volume:
@@ -187,7 +212,7 @@ def doEnded():
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips, skinLookup, heldItemLookup
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
@@ -236,6 +261,12 @@ def main():
       with open("cache/nameLookup.json", "w") as f:
         f.truncate(0)
         json.dump(nameLookup, f, indent=4, ensure_ascii=False)
+      with open("cache/skinLookup.json", "w") as f:
+        f.truncate(0)
+        json.dump(skinLookup, f, indent=4, ensure_ascii=False)
+      with open("cache/heldItemLookup.json", "w") as f:
+        f.truncate(0)
+        json.dump(heldItemLookup, f, indent=4, ensure_ascii=False)
       try:
         with open("data/lbin.json", "r") as lbinfile:
           avglbin = json.load(lbinfile)
