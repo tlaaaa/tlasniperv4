@@ -61,7 +61,7 @@ function checkFile() {
       }
       if (data != "") {
         data = JSON.parse(data)
-        wsServer.broadcast(JSON.stringify(data))
+        tosend = []
         fs.truncate("flips.json", 0, function() {
           console.log(data)
           lastUpdate = Date.now()
@@ -77,7 +77,11 @@ function checkFile() {
             }
             profit = Math.round(profit/1000)*1000
           	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
+            if (profit > 500000 && profit/flip.target > 0.15){
+            tosend.push(flip)
+            }
         });
+        wsServer.broadcast(JSON.stringify({"flips": tosend}))
         try {
         sendChannel.send({ embeds: [embed] });
         } catch (error) {

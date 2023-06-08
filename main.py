@@ -17,6 +17,7 @@ import base64
 import nbtlib
 import io
 import re
+import pickle
 from collections import Counter
 
 #variable init
@@ -29,6 +30,7 @@ lastTry = 0
 count = 0
 recentSellers = []
 flips = []
+petlbin = {}
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
 with open("data/lbin.json", "r") as f:
@@ -41,6 +43,8 @@ with open("cache/skinLookup.json", "r") as f:
   skinLookup = json.load(f)
 with open("cache/heldItemLookup.json", "r") as f:
   heldItemLookup = json.load(f)
+with open("data/pets/lbindata.pkl", "rb") as f:
+  petlbindata = pickle.load(f)
 
 #functions!!
 def milliTime():
@@ -97,7 +101,7 @@ async def fetchAll(pages):
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
 def auc(item, isScan):
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
 
@@ -109,7 +113,20 @@ def auc(item, isScan):
       if "[Lvl" in itemName:
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
         petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
+        if petLevel == 100:
+          petLevelRange = 100
+        elif petLevel <= 69:
+          petLevelRange = 0
+        elif petLevel <= 84:
+          petLevelRange = 70
+        elif petLevel <= 94:
+          petLevelRange = 85
+        elif petLevel <= 99:
+          petLevelRange = 95
+        else:
+          petLevelRange = round(petLevel/10)*10
         petCandied = bool("Pet Candy Used" in itemLore)
+        petRarity = item["tier"]
         #print(petLevel)
         if ("✦" in itemName):
           firstLine = itemLore.split("\n\n")[0]
@@ -133,6 +150,13 @@ def auc(item, isScan):
             heldItemLookup[heldLine] = heldItem
         else:
           heldItem = None
+        petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied)
+        if petInfo not in petlbin:
+          petlbin[petInfo] = startingBid
+        else:
+          if petlbin[petInfo] > startingBid:
+            petlbin[petInfo] = startingBid
+        #print(petInfo)
       elif itemName in nameLookup:
         itemID = nameLookup[itemName]
       else:
@@ -148,10 +172,10 @@ def auc(item, isScan):
     if isScan:
       if item["start"] > lastUpdated - 60_000:
         count = count + 1
-        if itemID in avglbin and itemID in LBIN and itemID in volume:
+        if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
           profit = avglbin[itemID] - startingBid
           lbinProfit = LBIN[itemID] - startingBid
-          if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.07 and lbinProfit/LBIN[itemID] > 0.06:
+          if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.08 and lbinProfit/LBIN[itemID] > 0.07 and avgsold[itemID]*2 > avglbin[itemID]:
             if LBIN[itemID] > avglbin[itemID] * 1.2:
               target = (LBIN[itemID] + avglbin[itemID])/2
             else:
@@ -212,7 +236,7 @@ def doEnded():
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips, skinLookup, heldItemLookup
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips, skinLookup, heldItemLookup, petlbindata
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
@@ -283,6 +307,19 @@ def main():
         with open("data/lbin.json", "w") as lbinfile:
           lbinfile.truncate(0)
           json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
+        with open("data/pets/lbindata.pkl", "rb") as petlbinpkl:
+          petlbindata = pickle.load(petlbinpkl)
+        for petInfo in petlbin:
+          if petInfo in petlbindata:
+            petlbindata[petInfo] = int(petlbindata[petInfo] - petlbindata[petInfo]/500 + petlbin[petInfo]/500)
+          else:
+            petlbindata[petInfo] = petlbin[petInfo]
+        with open("data/pets/lbindata.json", "w") as petlbinfile:
+          petlbinfile.truncate(0)
+          petlbinfile.write(str(petlbindata))
+        with open("data/pets/lbindata.pkl", "wb") as petlbinpkl:
+          petlbinpkl.truncate(0)
+          pickle.dump(petlbindata, petlbinpkl)
         for item in volume:
           if volume[item] > 100:
             volume[item] = 100
