@@ -109,6 +109,7 @@ def auc(item, isScan):
     itemName = str(item["item_name"])
     startingBid = int(item["starting_bid"])
     itemLore = str(item["item_lore"])
+    #initial blacklist
     try:
       if "[Lvl" in itemName:
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
@@ -157,15 +158,28 @@ def auc(item, isScan):
           if petlbin[petInfo] > startingBid:
             petlbin[petInfo] = startingBid
         #print(petInfo)
-      elif itemName in nameLookup:
-        itemID = nameLookup[itemName]
       else:
-        x_bytes = base64.b64decode(item["item_bytes"])
-        x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
-        itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
-        nameLookup[itemName] = itemID
-        #with open('cache/item.json', "w") as file:
-        #  json.dump(x_object, file, ensure_ascii=False, indent=4)
+        isHoe = False
+        for notId in ("Euclid's Wheat", "Gauss Carrot", "Newton Nether Warts", "Pythagorean Potato", "Turing Sugar Cane"):
+          if notId in itemName:
+            isHoe = True
+            hoelookup = itemName + item["tier"] + str(len(itemLore.split("Counter: ")[1].split("\n\n")[0])) + str(itemLore.count("§ka§r"))
+            if hoelookup in nameLookup:
+              itemID = nameLookup[hoelookup]
+            else:
+              x_bytes = base64.b64decode(item["item_bytes"])
+              x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+              itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+              nameLookup[hoelookup] = itemID
+        if itemName in nameLookup and not isHoe:
+          itemID = nameLookup[itemName]
+        else:
+          x_bytes = base64.b64decode(item["item_bytes"])
+          x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+          itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+          nameLookup[itemName] = itemID
+          #with open('cache/item.json', "w") as file:
+          #  json.dump(x_object, file, ensure_ascii=False, indent=4)
     except Exception:
       logger.opt(exception=Exception).error("error occured while getting item id "+item["item_bytes"]+" item "+item["item_name"])
     

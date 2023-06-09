@@ -41,6 +41,8 @@ const wsServer = new WebSocketServer({
     httpServer: server
 });
 
+const blacklist = ["Moody Grapple", "Abiphone", "Crab Hat"]
+
 wsServer.on('request', function(request) {
     console.log("WS Connected")
   
@@ -63,7 +65,7 @@ function checkFile() {
         data = JSON.parse(data)
         tosend = []
         fs.truncate("flips.json", 0, function() {
-          console.log(data)
+          //console.log(data)
           lastUpdate = Date.now()
         })
         var embed = new EmbedBuilder().setColor(0x000000).setTitle('omg new flips').setTimestamp()
@@ -77,11 +79,20 @@ function checkFile() {
             }
             profit = Math.round(profit/1000)*1000
           	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
-            if (profit > 500000 && profit/flip.target > 0.15){
+            if (profit > 800000 && profit/flip.target > 0.12){
+              send = true
+              blacklist.forEach((blacklisted) => {
+                if (flip.itemName.includes(blacklisted)) {
+                  send = false
+                }
+              })
+              if (send) {
             tosend.push(flip)
+              }
             }
         });
         wsServer.broadcast(JSON.stringify({"flips": tosend}))
+        console.log(tosend)
         try {
         sendChannel.send({ embeds: [embed] });
         } catch (error) {

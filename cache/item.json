@@ -4,52 +4,56 @@
             "id": 397,
             "Count": 1,
             "tag": {
-                "ench": [],
                 "HideFlags": 254,
                 "SkullOwner": {
-                    "Id": "030b6aeb-6fba-3a86-8d9f-fa84f842e865",
+                    "Id": "abfffe75-364e-37c4-ae74-e95316a2daa1",
                     "Properties": {
                         "textures": [
                             {
-                                "Value": "eyJ0aW1lc3RhbXAiOjE1NjgzNjYyODI2NDIsInByb2ZpbGVJZCI6IjQxZDNhYmMyZDc0OTQwMGM5MDkwZDU0MzRkMDM4MzFiIiwicHJvZmlsZU5hbWUiOiJNZWdha2xvb24iLCJzaWduYXR1cmVSZXF1aXJlZCI6dHJ1ZSwidGV4dHVyZXMiOnsiU0tJTiI6eyJ1cmwiOiJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzRhNjFiNGY4YjA3MGU0YmMzMGE4NmIyMjkwZGI2ZTU3ZTI2ODFjNDRlMDI1MGQxOTA2YTg5YWRiOGZjNDU1YjEifX19"
+                                "Value": "ewogICJ0aW1lc3RhbXAiIDogMTYwNTQwMTI2NjY1NCwKICAicHJvZmlsZUlkIiA6ICI5ZDQyNWFiOGFmZjg0MGU1OWM3NzUzZjc5Mjg5YjMyZSIsCiAgInByb2ZpbGVOYW1lIiA6ICJUb21wa2luNDIiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmE1YzY2ZWM2NmNiNmI0YjU1NTAwODVmNTgzYjRlNWMxY2VlNTI0N2JlYzVmYmNjNWMzMThjMzBjNjZjYWI0MiIKICAgIH0KICB9Cn0"
                             }
                         ]
                     }
                 },
                 "display": {
                     "Lore": [
-                        "§7Gear Score: §d425 §8(1245)",
-                        "§7Health: §a+193 §d(+8) §8(+565.47)",
-                        "§7Defense: §a+58.5 §8(+169.95)",
-                        "§7Intelligence: §a+230 §9(+120) §8(+679.8)",
-                        "§7Health Regen: §a+10 §8(+30.9)",
-                        " §9[§c❤§9]",
+                        "§8Farming Pet, Red Skin",
                         "",
-                        "§9Growth V§9, §9Protection V§9, §9Rejuvenate V",
+                        "§7Health: §a+100",
+                        "§7Intelligence: §a+75",
+                        "§7Farming Fortune: §a+30",
                         "",
-                        "§6Ability: Healing Boost",
-                        "§7Doubles your §a☄ Mending §7and",
-                        "§7§4♨ Vitality §7while wearing.",
+                        "§6Stomp",
+                        "§7§7Gain §a20❈ Defense §7for every",
+                        "§7100 §f✦ Speed§7.",
                         "",
-                        "§5§lEPIC DUNGEON HELMET"
+                        "§6Walking Fortress",
+                        "§7§7Gain §c1❤ Health §7for every",
+                        "§710 §a❈ Defense§7.",
+                        "",
+                        "§6Trunk Efficiency",
+                        "§7§7Grants §6+180☘ Farming",
+                        "§6Fortune§7, which increases your",
+                        "§7chance for multiple drops.",
+                        "",
+                        "§6Held Item: §9Yellow Bandana",
+                        "§7§7Grants §6+30☘ Farming",
+                        "§6Fortune§7.",
+                        "",
+                        "§b§lMAX LEVEL",
+                        "",
+                        "§7§eRight-click to add this pet to",
+                        "§eyour pet menu!",
+                        "",
+                        "§6§lLEGENDARY"
                     ],
-                    "Name": "§5Necrotic Revived Heart §6✪§6✪§6✪§6✪§6✪"
+                    "Name": "§7[Lvl 100] §6Elephant ✦"
                 },
                 "ExtraAttributes": {
-                    "gems": {
-                        "RUBY_0": "FINE"
-                    },
-                    "dungeon_item": 1,
-                    "modifier": "necrotic",
-                    "upgrade_level": 5,
-                    "id": "REVIVED_HEART",
-                    "enchantments": {
-                        "rejuvenate": 5,
-                        "growth": 5,
-                        "protection": 5
-                    },
-                    "uuid": "8d2994f9-151d-454c-ae2d-fe0460f32068",
-                    "timestamp": "4/9/23 1:10 AM"
+                    "petInfo": "{\"type\":\"ELEPHANT\",\"active\":false,\"exp\":5.0413948085231125E7,\"tier\":\"LEGENDARY\",\"hideInfo\":false,\"heldItem\":\"YELLOW_BANDANA\",\"candyUsed\":0,\"skin\":\"ELEPHANT_RED\",\"uuid\":\"31a67fdb-f7f2-47f2-ac1d-4ca4f1197d07\",\"hideRightClick\":false}",
+                    "id": "PET",
+                    "uuid": "31a67fdb-f7f2-47f2-ac1d-4ca4f1197d07",
+                    "timestamp": "5/25/23 1:49 PM"
                 }
             },
             "Damage": 3
