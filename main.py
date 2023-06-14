@@ -45,6 +45,11 @@ with open("cache/heldItemLookup.json", "r") as f:
   heldItemLookup = json.load(f)
 with open("data/pets/lbindata.pkl", "rb") as f:
   petlbindata = pickle.load(f)
+with open("data/pets/sold.pkl", "rb") as f:
+  petavgsold = pickle.load(f)
+with open("data/pets/volume.pkl", "rb") as f:
+  petvolume = pickle.load(f)
+
 
 #functions!!
 def milliTime():
@@ -216,7 +221,7 @@ def auc(item, isScan):
      
         
 def doEnded():
-  global volume, avgsold, recentSellers
+  global volume, avgsold, recentSellers, petavgsold, petvolume
   try:
     start_of_ended = datetime.datetime.now()
     recentlyEnded = requests.get("https://api.hypixel.net/skyblock/auctions_ended").json()
@@ -248,6 +253,10 @@ def doEnded():
           heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
         else: heldItem = None
         petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied)
+        if petInfo in petvolume: petvolume[petInfo] = petvolume[petInfo] + 1
+        else: petvolume[petInfo] = 0
+        if petInfo in petavgsold: petavgsold[petInfo] = int(petavgsold[petInfo] * 0.96 + item["price"] * 0.04)
+        else: petavgsold[petInfo] = item["price"]
         #print(petInfo)
       #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
       recentSellers.append(item["seller"])
@@ -353,6 +362,25 @@ def main():
         with open("data/pets/lbindata.pkl", "wb") as petlbinpkl:
           petlbinpkl.truncate(0)
           pickle.dump(petlbindata, petlbinpkl)
+        for item in petvolume:
+          if petvolume[item] > 100:
+            petvolume[item] = 100
+          elif petvolume[item] < 0:
+            petvolume[item] = 0
+          else:
+            petvolume[item] = petvolume[item] - petvolume[item]/1440
+        with open("data/pets/volume.json", "w") as f:
+          f.truncate(0)
+          f.write(str(petvolume))
+        with open("data/pets/volume.pkl", "wb") as petvolumepkl:
+          petvolumepkl.truncate(0)
+          pickle.dump(petvolume, petvolumepkl)
+        with open("data/pets/sold.json", "w") as soldfile:
+          soldfile.truncate(0)
+          soldfile.write(str(petavgsold))
+        with open("data/pets/sold.pkl", "wb") as petssoldfile:
+          petssoldfile.truncate(0)
+          pickle.dump(petavgsold, petssoldfile)
         for item in volume:
           if volume[item] > 100:
             volume[item] = 100
