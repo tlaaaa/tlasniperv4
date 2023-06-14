@@ -228,8 +228,27 @@ def doEnded():
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
       itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
       itemName = removeFormatting(x_object["i"][0]["tag"]["display"]["Name"])
+      itemLore = "\n".join(x_object["i"][0]["tag"]["display"]["Lore"])
       if "[Lvl" in itemName:
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
+        petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
+        if petLevel == 100: petLevelRange = 100
+        elif petLevel <= 69: petLevelRange = 0
+        elif petLevel <= 84: petLevelRange = 70
+        elif petLevel <= 94: petLevelRange = 85
+        elif petLevel <= 99: petLevelRange = 95
+        else: petLevelRange = round(petLevel/10)*10
+        petCandied = bool("Pet Candy Used" in itemLore)
+        petRarity = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"tier\":\"")[1].split("\",")[0]
+        #print(petLevel)
+        if ("✦" in itemName):
+          skin = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"skin\":\"")[1].split("\",")[0]
+        else: skin = None
+        if ("Held Item:") in itemLore:
+          heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
+        else: heldItem = None
+        petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied)
+        #print(petInfo)
       #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
       recentSellers.append(item["seller"])
       if itemID in volume:
