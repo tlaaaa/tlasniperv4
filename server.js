@@ -41,7 +41,7 @@ const wsServer = new WebSocketServer({
     httpServer: server
 });
 
-const blacklist = ["Moody Grapple", "Abiphone", "Crab Hat", "Century Cake", "Wand of Strength", "Ocelot", "Mender Crown", "Red Snubfin", " Skin"]
+const blacklist = ["Moody Grapple", "Abiphone", "Crab Hat", "Century Cake", "Wand of Strength", "Ocelot", "Mender Crown", "Red Snubfin", " Skin", "Griffin Upgrade", "Beastmaster"]
 
 wsServer.on('request', function(request) {
     console.log("WS Connected")
@@ -79,7 +79,7 @@ function checkFile() {
             }
             profit = Math.round(profit/1000)*1000
           	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
-            if (profit > 900000 && profit/flip.target > 0.15){
+            if (profit > 1200000 && profit/flip.target > 0.16){
               send = true
               blacklist.forEach((blacklisted) => {
                 if (flip.itemName.includes(blacklisted)) {

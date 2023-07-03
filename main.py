@@ -1,3 +1,6 @@
+#apologies to anyone trying to understand this code.
+
+#setting up logger, has up to 50 1mb files of logs.
 from loguru import logger
 import sys
 import datetime
@@ -5,7 +8,7 @@ import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 logger.remove()
-logger.add("logs/out.log", enqueue=True, rotation="1 MB", retention=10, backtrace=True, diagnose=True)
+logger.add("logs/out.log", enqueue=True, rotation="1 MB", retention=50, backtrace=True, diagnose=True)
 logger.add(sys.stderr, colorize=True, format="| <g><d>{time:HH:mm:ss}</d></g> | <g><b>{level}</b></g> | {message} |", level="INFO")
 
 start_time = datetime.datetime.now()
@@ -31,6 +34,10 @@ count = 0
 recentSellers = []
 flips = []
 petlbin = {}
+
+#loading saved variables from cache/data
+#generally, cache is just lookup dictionaries, which speed up the program, reducing the need for nbt decoding
+#data is saved averages/lowestbin data, which is used to calculate prices
 with open("cache/nameLookup.json", "r") as f:
   nameLookup = json.load(f)
 with open("data/lbin.json", "r") as f:
@@ -51,7 +58,7 @@ with open("data/pets/volume.pkl", "rb") as f:
   petvolume = pickle.load(f)
 
 
-#functions!!
+#functions!! these should be mostly making sense
 def milliTime():
   return (int(time.time()*1000))
 
@@ -71,6 +78,7 @@ def removeFormatting(string):
   unformattedString = re.sub("§.", "", string)
   return unformattedString
 
+#allows for the writing of date objects in json which can be interpreted in js
 def handler(obj):
     if hasattr(obj, 'isoformat'):
         return obj.isoformat()
@@ -79,15 +87,15 @@ def handler(obj):
     else:
         raise TypeError
 
-
+#literally just a request, returns json object of a certain auction page
 def getApiPage(page):
   try:
     api = requests.get("https://api.hypixel.net/skyblock/auctions?page="+str(page)).json()
     return api
   except Exception as e:
     logger.opt(exception=e).error("error occured while requesting api")
-  #print("Request Returned. Time taken: "+ str(datetime.datetime.now() - start_time))
 
+#parses and scans a certain page of the auction house
 def fetchPage(pg):
   global times
   page = getApiPage(pg)
@@ -100,23 +108,27 @@ def fetchPage(pg):
     checkpoint = datetime.datetime.now()
     times.append(timetaken)
 
+#parses and scans ALL the pages of the auction house.
 async def fetchAll(pages):
     with ThreadPoolExecutor(max_workers=5) as executor:
-        # allows for 5 threads to be operated at once: reduces the impact of lag. having too many slows it down further
+        # allows for 5 threads to be operated at once: reduces the impact of latency. having too many slows it down further
         _ = [executor.submit(fetchPage, pg) for pg in range(pages)]
 
+#auction parsing, slightly differs depending on whether it's just scanning (looking for flips) or not scanning (calculating more price data)
 def auc(item, isScan):
+  #probably issues with needing this many global variables in this function. what can you do.
   global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
-
+  
+  #ignores non-bin auctions
   if item["bin"]:
     itemName = str(item["item_name"])
     startingBid = int(item["starting_bid"])
     itemLore = str(item["item_lore"])
-    #initial blacklist
+    #insert initial blacklist here. or not.
     try:
-      if "[Lvl" in itemName:
+      if "[Lvl" in itemName: #checks if item is a pet or not
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
         petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
         if petLevel == 100:
@@ -134,18 +146,18 @@ def auc(item, isScan):
         petCandied = bool("Pet Candy Used" in itemLore)
         petRarity = item["tier"]
         #print(petLevel)
-        if ("✦" in itemName):
+        if ("✦" in itemName): #checks if pet is skinned or not
           firstLine = itemLore.split("\n\n")[0]
           if firstLine+itemID in skinLookup:
             skin = skinLookup[firstLine+itemID]
           else:
-            x_bytes = base64.b64decode(item["item_bytes"])
+            x_bytes = base64.b64decode(item["item_bytes"]) #okay. could theoretically make it more "efficient" if there were checks for if the nbt object was created yet. however no.
             x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
             skin = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"skin\":\"")[1].split("\",")[0]
             skinLookup[firstLine+itemID] = skin
         else:
           skin = None
-        if ("Held Item:") in itemLore:
+        if ("Held Item:") in itemLore: #lf held item
           heldLine = itemLore.split("Held Item: ")[1].split("\n")[0]
           if heldLine in heldItemLookup:
             heldItem = heldItemLookup[heldLine]
@@ -163,7 +175,7 @@ def auc(item, isScan):
           if petlbin[petInfo] > startingBid:
             petlbin[petInfo] = startingBid
         #print(petInfo)
-      else:
+      else: #hoes can have the same name but different item id. it's really silly. adds extra information to the lookup query if its a hoe to avoid the system getting confused
         isHoe = False
         for notId in ("Euclid's Wheat", "Gauss Carrot", "Newton Nether Warts", "Pythagorean Potato", "Turing Sugar Cane"):
           if notId in itemName:
@@ -186,14 +198,15 @@ def auc(item, isScan):
           #with open('cache/item.json', "w") as file:
           #  json.dump(x_object, file, ensure_ascii=False, indent=4)
     except Exception:
-      logger.opt(exception=Exception).error("error occured while getting item id "+item["item_bytes"]+" item "+item["item_name"])
+      logger.opt(exception=Exception).error("error occured while parsing item id "+item["item_bytes"]+" item "+item["item_name"])
     
-    if isScan:
+    if isScan: #if trying to calculate flips, no need to save prices (that will be done on a subsequent iteration)
       if item["start"] > lastUpdated - 60_000:
         count = count + 1
         if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
           profit = avglbin[itemID] - startingBid
           lbinProfit = LBIN[itemID] - startingBid
+          #where did those VV numbers come from? my head. sorry. maybe more fine tuning later.
           if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.08 and lbinProfit/LBIN[itemID] > 0.07 and avgsold[itemID]*2 > avglbin[itemID]:
             if LBIN[itemID] > avglbin[itemID] * 1.2:
               target = (LBIN[itemID] + avglbin[itemID])/2
@@ -210,16 +223,14 @@ def auc(item, isScan):
             })
     
     else:
-        #yep so we got the ID lets just do lbin stuff
+        #if not scanning, just see if there is a cheaper one on ah, if not set it as lbin.
         if itemID in LBIN:
           if LBIN[itemID] > startingBid:
             LBIN[itemID] = startingBid
         else:
           LBIN[itemID] = startingBid
         
-      
-     
-        
+#scanning and parsing the "recently ended" auctions. items here don't show lore so nbt parsing is needed every time.
 def doEnded():
   global volume, avgsold, recentSellers, petavgsold, petvolume
   try:
@@ -233,10 +244,11 @@ def doEnded():
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
       itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
       itemName = removeFormatting(x_object["i"][0]["tag"]["display"]["Name"])
-      itemLore = "\n".join(x_object["i"][0]["tag"]["display"]["Lore"])
+      itemLore = "\n".join(x_object["i"][0]["tag"]["display"]["Lore"]) #formats the lore so it's like how its formatted for normal auctions (long string), instead of a list
       if "[Lvl" in itemName:
         itemID = "PET_"+itemName.split("] ")[1].replace(" ✦", "").replace(" ", "_").upper()
         petLevel = int(itemName.split("]")[0].replace("[Lvl ", ""))
+        #pet level setting shennanigans. random numbers pulled out of my ass.
         if petLevel == 100: petLevelRange = 100
         elif petLevel <= 69: petLevelRange = 0
         elif petLevel <= 84: petLevelRange = 70
@@ -245,20 +257,21 @@ def doEnded():
         else: petLevelRange = round(petLevel/10)*10
         petCandied = bool("Pet Candy Used" in itemLore)
         petRarity = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"tier\":\"")[1].split("\",")[0]
-        #print(petLevel)
         if ("✦" in itemName):
           skin = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"skin\":\"")[1].split("\",")[0]
         else: skin = None
         if ("Held Item:") in itemLore:
           heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
         else: heldItem = None
-        petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied)
+        #wow the code is much easier when you just parse nbt every time.
+        petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied) #petinfo is a tuple which describes the pet
         if petInfo in petvolume: petvolume[petInfo] = petvolume[petInfo] + 1
         else: petvolume[petInfo] = 0
         if petInfo in petavgsold: petavgsold[petInfo] = int(petavgsold[petInfo] * 0.96 + item["price"] * 0.04)
         else: petavgsold[petInfo] = item["price"]
         #print(petInfo)
-      #print(removeFormatting(x_object["i"][0]["tag"]["display"]["Name"] + " " + str(item["price"])))
+      #return to code which is not specific to pets
+      #dictionary of the most 1000 recent sellers. may be used for something in the future.
       recentSellers.append(item["seller"])
       if itemID in volume:
         volume[itemID] = volume[itemID] + 1
@@ -324,21 +337,21 @@ def main():
       
       doEnded()
 
-      with open("cache/nameLookup.json", "w") as f:
-        f.truncate(0)
-        json.dump(nameLookup, f, indent=4, ensure_ascii=False)
-      with open("cache/skinLookup.json", "w") as f:
-        f.truncate(0)
-        json.dump(skinLookup, f, indent=4, ensure_ascii=False)
-      with open("cache/heldItemLookup.json", "w") as f:
-        f.truncate(0)
-        json.dump(heldItemLookup, f, indent=4, ensure_ascii=False)
-      try:
+      try: #saving and organising data. calculating averages. not pretty.
+        with open("cache/nameLookup.json", "w") as f:
+          f.truncate(0)
+          json.dump(nameLookup, f, indent=4, ensure_ascii=False)
+        with open("cache/skinLookup.json", "w") as f:
+          f.truncate(0)
+          json.dump(skinLookup, f, indent=4, ensure_ascii=False)
+        with open("cache/heldItemLookup.json", "w") as f:
+          f.truncate(0)
+          json.dump(heldItemLookup, f, indent=4, ensure_ascii=False)
         with open("data/lbin.json", "r") as lbinfile:
           avglbin = json.load(lbinfile)
         for id in LBIN:
           if id in avglbin:
-            if avglbin[id] > LBIN[id] * 2:
+            if avglbin[id] > LBIN[id] * 2: #makes it easier for prices to drop than rise. its safer that way i hope.
               avglbin[id] = int(avglbin[id] - avglbin[id]/20 + LBIN[id]/20)
             elif avglbin[id] > LBIN[id] * 1.3:
               avglbin[id] = int(avglbin[id] - avglbin[id]/250 + LBIN[id]/250)
@@ -407,11 +420,11 @@ def main():
 try:
   main()
 except Exception:
-  logger.opt(exception=Exception).error("uncaught exception at some point in main()...")
+  logger.opt(exception=Exception).error("uncaught exception at some point in main()... (on first run)")
 
 while True:
-  if lastTry < milliTime() - 500:
-    if (updateTime < milliTime() - 59_000):
+  if lastTry < milliTime() - 100:
+    if (updateTime < milliTime() - 59_000): #starts trying slightly early.
       try:
         main()
       except Exception:
