@@ -13,3 +13,7 @@ venv/
 cache/*
 logs/*
 data/*
+node_modules/
+.upm/
+package-lock.json
+package.json
