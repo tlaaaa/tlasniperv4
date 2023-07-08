@@ -117,7 +117,7 @@ async def fetchAll(pages):
 #auction parsing, slightly differs depending on whether it's just scanning (looking for flips) or not scanning (calculating more price data)
 def auc(item, isScan):
   #probably issues with needing this many global variables in this function. what can you do.
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
   
@@ -126,6 +126,7 @@ def auc(item, isScan):
     itemName = str(item["item_name"])
     startingBid = int(item["starting_bid"])
     itemLore = str(item["item_lore"])
+    petInfo = None
     #insert initial blacklist here. or not.
     try:
       if "[Lvl" in itemName: #checks if item is a pet or not
@@ -166,14 +167,12 @@ def auc(item, isScan):
             x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
             heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
             heldItemLookup[heldLine] = heldItem
+          if ("SKILL_BOOST" in heldItem or "SKILLS_BOOST" in heldItem or petLevelRange == 0):
+            heldItem = None
         else:
           heldItem = None
         petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied)
-        if petInfo not in petlbin:
-          petlbin[petInfo] = startingBid
-        else:
-          if petlbin[petInfo] > startingBid:
-            petlbin[petInfo] = startingBid
+
         #print(petInfo)
       else: #hoes can have the same name but different item id. it's really silly. adds extra information to the lookup query if its a hoe to avoid the system getting confused
         isHoe = False
@@ -203,24 +202,61 @@ def auc(item, isScan):
     if isScan: #if trying to calculate flips, no need to save prices (that will be done on a subsequent iteration)
       if item["start"] > lastUpdated - 60_000:
         count = count + 1
-        if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
-          profit = avglbin[itemID] - startingBid
-          lbinProfit = LBIN[itemID] - startingBid
-          #where did those VV numbers come from? my head. sorry. maybe more fine tuning later.
-          if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.08 and lbinProfit/LBIN[itemID] > 0.07 and avgsold[itemID]*2 > avglbin[itemID]:
-            if LBIN[itemID] > avglbin[itemID] * 1.2:
-              target = (LBIN[itemID] + avglbin[itemID])/2
-            else:
-              target = LBIN[itemID] * 0.998 - 1000
-            target = int(int(target / 10_000) * 10_000 - 1)
-            print(itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]) + " target: "+str(target))
-            flips.append({
-              "itemName": itemName,
-              "id": item["uuid"],
-              "startingBid": startingBid,
-              "target": target,
-              "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
-            })
+        itemValue = 0
+        flipFound = False
+        if petInfo is not None:
+          if petInfo in petlbindata and petInfo in petlbin and petInfo in petavgsold and petInfo in petvolume:
+            #printing information for debug idk
+            petLbinProfit = petlbin[petInfo] - startingBid
+            petAvgLbinProfit = petlbindata[petInfo] - startingBid
+            petAvgSoldProfit = petavgsold[petInfo]-startingBid
+            print(str(petInfo)+": "+formatNumber(startingBid))
+            print("lbin "+formatNumber(petlbin[petInfo])+" ("+formatNumber(petLbinProfit)+")")
+            print("avglbin "+formatNumber(petlbindata[petInfo])+" ("+formatNumber(petAvgLbinProfit)+")")
+            print("avgsold "+formatNumber(petavgsold[petInfo])+" ("+formatNumber(petAvgSoldProfit)+")")
+            print("volume "+str(int(petvolume[petInfo]*100)/100))
+            if petAvgSoldProfit > 500_000:
+              if petAvgSoldProfit/petavgsold[petInfo] > 0.08:
+                if petLbinProfit > 500_000:
+                  if petLbinProfit/petlbin[petInfo] > 0.08:
+                    #i guess it's a flip?
+                    flipFound = True
+                    if petlbin[petInfo] > petavgsold[petInfo] * 1.2:
+                      target = petavgsold[petInfo]
+                    else:
+                      target = petlbin[petInfo] * 0.998 - 1000
+                    target = int(int(target / 10_000) * 10_000 - 1)
+                    flips.append({
+                      "itemName": itemName,
+                      "id": item["uuid"],
+                      "startingBid": startingBid,
+                      "target": target,
+                      "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
+                      "notes": "PET. CAUTION. petInfo:"+str(petInfo)+"\nVolume:"+str(int(petvolume[petInfo]*100)/100),
+                      "rarity": item["tier"],
+                    })
+            
+        if flipFound is not True:
+          if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
+            profit = avglbin[itemID] - startingBid
+            lbinProfit = LBIN[itemID] - startingBid
+            #where did those VV numbers come from? my head. sorry. maybe more fine tuning later.
+            if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.08 and lbinProfit/LBIN[itemID] > 0.07 and avgsold[itemID]*2 > avglbin[itemID]:
+              if LBIN[itemID] > avglbin[itemID] * 1.2:
+                target = (LBIN[itemID] + avglbin[itemID])/2
+              else:
+                target = LBIN[itemID] * 0.998 - 1000
+              target = int(int(target / 10_000) * 10_000 - 1)
+              print(itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]) + " target: "+str(target))
+              flips.append({
+                "itemName": itemName,
+                "id": item["uuid"],
+                "startingBid": startingBid,
+                "target": target,
+                "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
+                "notes": "",
+                "rarity": item["tier"],
+              })
     
     else:
         #if not scanning, just see if there is a cheaper one on ah, if not set it as lbin.
@@ -229,6 +265,12 @@ def auc(item, isScan):
             LBIN[itemID] = startingBid
         else:
           LBIN[itemID] = startingBid
+        if petInfo is not None:  
+          if petInfo not in petlbin:
+            petlbin[petInfo] = startingBid
+          else:
+            if petlbin[petInfo] > startingBid:
+              petlbin[petInfo] = startingBid
         
 #scanning and parsing the "recently ended" auctions. items here don't show lore so nbt parsing is needed every time.
 def doEnded():
@@ -262,6 +304,8 @@ def doEnded():
         else: skin = None
         if ("Held Item:") in itemLore:
           heldItem = x_object["i"][0]["tag"]["ExtraAttributes"]["petInfo"].split("\"heldItem\":\"")[1].split("\",")[0]
+          if ("SKILL_BOOST" in heldItem or "SKILLS_BOOST" in heldItem or petLevelRange == 0):
+            heldItem = None
         else: heldItem = None
         #wow the code is much easier when you just parse nbt every time.
         petInfo = (itemID, petRarity, petLevelRange, skin, heldItem, petCandied) #petinfo is a tuple which describes the pet
@@ -407,6 +451,7 @@ def main():
         with open("data/sold.json", "w") as soldfile:
           soldfile.truncate(0)
           json.dump(avgsold, soldfile, indent=2, ensure_ascii=False)
+        logger.info("Finished saving data, awaiting new data.")
       except Exception:
         logger.opt(exception=Exception).error("Something went wrong while saving average LBIN data.")
         #add failsafe here! wait where is the failsafe

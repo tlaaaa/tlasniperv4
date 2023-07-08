@@ -71,15 +71,20 @@ function checkFile() {
         var embed = new EmbedBuilder().setColor(0x000000).setTitle('omg new flips').setTimestamp()
         data.flips.forEach((flip) => {
             if (flip.target < 10000000){
-              var profit = (flip.target - flip.startingBid)*0.98
+              var profit = (flip.target - flip.startingBid) - flip.target*0.02
             } else if (flip.target < 100000000){
-              var profit = (flip.target - flip.startingBid)*0.97
+              var profit = (flip.target - flip.startingBid) - flip.target*0.03
             } else {
-              var profit = (flip.target - flip.startingBid)*0.965
+              var profit = (flip.target - flip.startingBid) - flip.target*0.035
             }
             profit = Math.round(profit/1000)*1000
-          	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
-            if (profit > 1200000 && profit/flip.target > 0.16){
+            if (flip.notes != "") {
+              embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString()+"\nNotes: "+flip.notes, inline: false })
+            }
+            else {
+            	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
+            }
+            if (profit > 0 && profit/flip.target > 0){
               send = true
               blacklist.forEach((blacklisted) => {
                 if (flip.itemName.includes(blacklisted)) {
