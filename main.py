@@ -22,6 +22,7 @@ import io
 import re
 import pickle
 from collections import Counter
+import mcfc
 
 #variable init
 times = []
@@ -48,6 +49,8 @@ with open("data/sold.json", "r") as f:
   avgsold = json.load(f)
 with open("cache/skinLookup.json", "r") as f:
   skinLookup = json.load(f)
+with open("cache/GEM.json", "r") as f:
+  gemLookup = json.load(f)
 with open("cache/heldItemLookup.json", "r") as f:
   heldItemLookup = json.load(f)
 with open("data/pets/lbindata.pkl", "rb") as f:
@@ -56,7 +59,12 @@ with open("data/pets/sold.pkl", "rb") as f:
   petavgsold = pickle.load(f)
 with open("data/pets/volume.pkl", "rb") as f:
   petvolume = pickle.load(f)
-
+with open("data/armour/lbindata.pkl", "rb") as f:
+  armourlbindata = pickle.load(f)
+with open("data/armour/sold.pkl", "rb") as f:
+  armouravgsold = pickle.load(f)
+with open("data/armour/volume.pkl", "rb") as f:
+  armourvolume = pickle.load(f)
 
 #functions!! these should be mostly making sense
 def milliTime():
@@ -117,7 +125,7 @@ async def fetchAll(pages):
 #auction parsing, slightly differs depending on whether it's just scanning (looking for flips) or not scanning (calculating more price data)
 def auc(item, isScan):
   #probably issues with needing this many global variables in this function. what can you do.
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume, gemLookup
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
   
@@ -127,6 +135,7 @@ def auc(item, isScan):
     startingBid = int(item["starting_bid"])
     itemLore = str(item["item_lore"])
     petInfo = None
+    armourInfo = None
     #insert initial blacklist here. or not.
     try:
       if "[Lvl" in itemName: #checks if item is a pet or not
@@ -196,6 +205,114 @@ def auc(item, isScan):
           nameLookup[itemName] = itemID
           #with open('cache/item.json', "w") as file:
           #  json.dump(x_object, file, ensure_ascii=False, indent=4)
+      if item["category"] == "armor": #armour!!
+        #stars, ult enchant, gemstone/slots, recomb, other (skin, etc idk, item specific things), reforge?
+        otherInfo = ""
+
+        lastLine = itemLore.split("\n")[-1]
+        if "§l§ka§r" in lastLine:
+          isRecombobulated = True
+        else:
+          isRecombobulated = False
+        
+        armourStars = itemName.count("✪")
+        if "➊" in itemName: armourStars = 6
+        elif "➋" in itemName: armourStars = 7
+        elif "➌" in itemName: armourStars = 8
+        elif "➍" in itemName: armourStars = 9
+        elif "➎" in itemName: armourStars = 10
+
+        if "⚚ " in itemName:
+          otherInfo = otherInfo + "|frag"
+
+        if " ✦" in itemName:
+          firstLine = itemLore.split("\n\n")[0]
+          if firstLine+itemID in skinLookup:
+            skin = skinLookup[firstLine+itemID]
+          else:
+            x_bytes = base64.b64decode(item["item_bytes"]) #okay. could theoretically make it more "efficient" if there were checks for if the nbt object was created yet. however no.
+            x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+            skin = x_object["i"][0]["tag"]["ExtraAttributes"]["skin"]
+            skinLookup[firstLine+itemID] = skin
+        elif "✿ " in itemName: #goofed up code i guess- dye = skin = dye = skin but yeah so its always a skin now fuck you
+          thelastbitofthelore = itemLore.split("\n\n")[-1].split("\n")[0]
+          if "This item can be reforged!" in thelastbitofthelore:
+            thelastbitofthelore = itemLore.split("\n\n")[-1].split("\n")[1]
+          if thelastbitofthelore in skinLookup:
+            skin = skinLookup[thelastbitofthelore]
+          else:
+            x_bytes = base64.b64decode(item["item_bytes"]) #okay. could theoretically make it more "efficient" if there were checks for if the nbt object was created yet. however no.
+            x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+            skin = x_object["i"][0]["tag"]["ExtraAttributes"]["dye_item"]
+            skinLookup[thelastbitofthelore] = skin
+        else:
+          skin = None
+
+        armourReforges = ("Submerged", "Festive", "Jaded", "Loving", "Renowned", "Giant", "Ancient", "Mossy") #necrotic?
+        armourReforge = None
+        for aReforge in armourReforges:
+          if aReforge == itemName.split(" ")[0]:
+            armourReforge = aReforge
+
+        checkSlots = ("Necron's", "Storm's", "Goldor's", "Maxor's", "Sorrow", "Divan")
+        for slotItem in checkSlots:
+          if slotItem in itemName:
+            if " ✦" not in itemName:
+              gemLine = itemLore.split("\n\n")[0].split("\n")[-1]
+            else:
+              gemLine = itemLore.split("\n\n")[1].split("\n")[-1]
+            if gemLine in gemLookup:
+              gemSaved = gemLookup[gemLine]
+              gems = gemSaved[0]
+              slotsUnlocked = gemSaved[1]
+            else:
+              x_bytes = base64.b64decode(item["item_bytes"])
+              x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+              if x_object["i"][0]["tag"]["ExtraAttributes"].get("gems"):
+                gemObj = x_object["i"][0]["tag"]["ExtraAttributes"]["gems"]
+                gemSaved = []
+                gemSaved.append([])
+                for slot in gemObj:
+                  if slot != "unlocked_slots" and "_gem" not in slot:
+                    if "UNIVERSAL" in slot or "DEFENSIVE" in slot or "COMBAT" in slot or "MINING" in slot or "OFFENSIVE" in slot:
+                      gemType = gemObj[slot+"_gem"]
+                      if "quality" in gemObj[slot]:
+                        gemSaved[0].append(gemObj[slot]["quality"] + "_" + gemType)
+                      else:
+                        gemSaved[0].append(gemObj[slot] + "_" + gemType)
+                    else:
+                      if "quality" in gemObj[slot]:
+                        gemSaved[0].append(gemObj[slot]["quality"] + "_" + list(slot.upper().split("_"))[0])
+                      else:
+                        gemSaved[0].append(gemObj[slot] + "_" + list(slot.upper().split("_"))[0])
+                gemSaved.append([])
+                if gemObj.get("unlocked_slots"):
+                  for slot in gemObj["unlocked_slots"]:
+                    gemSaved[1].append(str(slot))
+              else:
+                gemSaved = [None, None]
+              mcfc.echo(gemLine.replace("§", "&") + "&r " +str(gemSaved))
+              if int(x_object["i"][0]["tag"]["ExtraAttributes"]["timestamp"].split(" ")[0].split("/")[-1]) > 21:
+                gemLookup[gemLine] = gemSaved
+        if "gemSaved" in locals():
+          unlockedSlots = gemSaved[1]
+        else:
+          unlockedSlots = None
+                #this is needed as older items have slots unlocked but do not explicitly say so in the nbt data
+
+        """if "Jaded Sorrow Chestplate" in itemName:
+          x_bytes = base64.b64decode(item["item_bytes"])
+          x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
+          itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+          nameLookup[itemName] = itemID
+          with open('cache/item.json', "w") as file:
+            json.dump(x_object, file, ensure_ascii=False, indent=4)"""
+
+        armourInfo = (itemID, armourStars, skin, armourReforge, unlockedSlots, isRecombobulated, otherInfo)
+        #print(armourInfo)
+        
+      #then attributes seperately ¿
+      
     except Exception:
       logger.opt(exception=Exception).error("error occured while parsing item id "+item["item_bytes"]+" item "+item["item_name"])
     
@@ -210,12 +327,17 @@ def auc(item, isScan):
             petLbinProfit = petlbin[petInfo] - startingBid
             petAvgLbinProfit = petlbindata[petInfo] - startingBid
             petAvgSoldProfit = petavgsold[petInfo]-startingBid
-            print(str(petInfo)+": "+formatNumber(startingBid))
+            """print(str(petInfo)+": "+formatNumber(startingBid))
             print("lbin "+formatNumber(petlbin[petInfo])+" ("+formatNumber(petLbinProfit)+")")
             print("avglbin "+formatNumber(petlbindata[petInfo])+" ("+formatNumber(petAvgLbinProfit)+")")
             print("avgsold "+formatNumber(petavgsold[petInfo])+" ("+formatNumber(petAvgSoldProfit)+")")
-            print("volume "+str(int(petvolume[petInfo]*100)/100))
-            if petAvgSoldProfit > 500_000:
+            print("volume "+str(int(petvolume[petInfo]*100)/100))"""
+            estimatedTime = 24 / petvolume[petInfo]
+            flipValue = petLbinProfit / estimatedTime
+            #print(str(petInfo))
+            #print("Estimated time to sell: "+str(estimatedTime) + " Profit: "+ str(petLbinProfit*0.965) + " Flip Value: "+str(flipValue)+" coins/hour")
+            
+            if petAvgSoldProfit > 500_000 and petvolume[petInfo] > 6: #<< increase volume later maybe or just filter them more?
               if petAvgSoldProfit/petavgsold[petInfo] > 0.08:
                 if petLbinProfit > 500_000:
                   if petLbinProfit/petlbin[petInfo] > 0.08:
@@ -235,7 +357,10 @@ def auc(item, isScan):
                       "notes": "PET. CAUTION. petInfo:"+str(petInfo)+"\nVolume:"+str(int(petvolume[petInfo]*100)/100),
                       "rarity": item["tier"],
                     })
-            
+        elif item["category"] == "armor":
+          
+          pass
+        
         if flipFound is not True:
           if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
             profit = avglbin[itemID] - startingBid
@@ -271,6 +396,9 @@ def auc(item, isScan):
           else:
             if petlbin[petInfo] > startingBid:
               petlbin[petInfo] = startingBid
+        if armourInfo is not None:
+          pass
+          
         
 #scanning and parsing the "recently ended" auctions. items here don't show lore so nbt parsing is needed every time.
 def doEnded():
@@ -388,6 +516,9 @@ def main():
         with open("cache/skinLookup.json", "w") as f:
           f.truncate(0)
           json.dump(skinLookup, f, indent=4, ensure_ascii=False)
+        with open("cache/GEM.json", "w") as f:
+          f.truncate(0)
+          json.dump(gemLookup, f, indent=4, ensure_ascii=False)
         with open("cache/heldItemLookup.json", "w") as f:
           f.truncate(0)
           json.dump(heldItemLookup, f, indent=4, ensure_ascii=False)
@@ -420,9 +551,7 @@ def main():
           petlbinpkl.truncate(0)
           pickle.dump(petlbindata, petlbinpkl)
         for item in petvolume:
-          if petvolume[item] > 100:
-            petvolume[item] = 100
-          elif petvolume[item] < 0:
+          if petvolume[item] < 0:
             petvolume[item] = 0
           else:
             petvolume[item] = petvolume[item] - petvolume[item]/1440
@@ -439,9 +568,7 @@ def main():
           petssoldfile.truncate(0)
           pickle.dump(petavgsold, petssoldfile)
         for item in volume:
-          if volume[item] > 100:
-            volume[item] = 100
-          elif volume[item] < 0:
+          if volume[item] < 0:
             volume[item] = 0
           else:
             volume[item] = volume[item] - volume[item]/1440

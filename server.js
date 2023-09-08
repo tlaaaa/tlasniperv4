@@ -32,6 +32,19 @@ function writeHtml(outputStream) {
     })
 }
 
+function stringynum(num) {
+  if (num / 1_000_000_000 > 0.999) {
+    out = (Math.round(num / 1_000_000_0)/100).toString() + "b" 
+  } else if (num / 1_000_000 > 0.999) {
+    out = (Math.round(num / 1_000_0)/100).toString() + "m"
+  } else if (num / 1_000 > 0.999) {
+    out = (Math.round(num / 10)/100).toString() + "k"
+  } else {
+    out = num.toString()
+  }
+  return out
+}
+
 const server = http.createServer(function (req, res) {
   res.writeHead(200, {'Content-Type': 'text/html'});
   writeHtml(res)
@@ -79,10 +92,10 @@ function checkFile() {
             }
             profit = Math.round(profit/1000)*1000
             if (flip.notes != "") {
-              embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString()+"\nNotes: "+flip.notes, inline: false })
+              embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+stringynum(flip.startingBid)+"\nTarget: "+stringynum(flip.target)+"\nEst. Profit: "+stringynum(profit)+"\nNotes: "+flip.notes, inline: false })
             }
             else {
-            	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+flip.startingBid.toString()+"\nTarget: "+flip.target.toString()+"\nEst. Profit: "+profit.toString(), inline: false })
+            	embed.addFields({ name: flip.itemName, value: '`/viewauction '+flip.id+"`\nPrice: "+stringynum(flip.startingBid)+"\nTarget: "+stringynum(flip.target)+"\nEst. Profit: "+stringynum(profit), inline: false })
             }
             if (profit > 0 && profit/flip.target > 0){
               send = true
