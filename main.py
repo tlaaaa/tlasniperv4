@@ -37,6 +37,7 @@ flips = []
 petlbin = {}
 armourlbin = {}
 skipGem = []
+bigcount = 0
 
 #loading saved variables from cache/data
 #generally, cache is just lookup dictionaries, which speed up the program, reducing the need for nbt decoding
@@ -111,17 +112,22 @@ def getApiPage(page):
 
 #parses and scans a certain page of the auction house
 def fetchPage(pg):
-  global times
-  page = getApiPage(pg)
-  checkpoint = datetime.datetime.now()
-  
-  for item in page["auctions"]:
-    auc(item, False)
-    timetaken = datetime.datetime.now() - checkpoint
-    #print("Parsed an item. Time taken: "+ str(timetaken))
+  try: 
+    global times
+    page = getApiPage(pg)
     checkpoint = datetime.datetime.now()
-    times.append(timetaken)
-
+    smallcount = 0
+    
+    for item in page["auctions"]:
+      smallcount += 1
+      auc(item, False)
+      timetaken = datetime.datetime.now() - checkpoint
+      #print("Parsed an item. Time taken: "+ str(timetaken))
+      checkpoint = datetime.datetime.now()
+      times.append(timetaken)
+    print("Fetched page " + str(pg) + ", finding "+str(smallcount) + " auctions.")
+  except Exception as e:
+    logger.opt(exception=e).error("error occured while parsing page "+str(pg))
 #parses and scans ALL the pages of the auction house.
 async def fetchAll(pages):
     with ThreadPoolExecutor(max_workers=5) as executor:
@@ -131,9 +137,10 @@ async def fetchAll(pages):
 #auction parsing, slightly differs depending on whether it's just scanning (looking for flips) or not scanning (calculating more price data)
 def auc(item, isScan):
   #probably issues with needing this many global variables in this function. what can you do.
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume, gemLookup, armourvolume, armouravgsold, armourlbindata, armourlbin
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume, gemLookup, armourvolume, armouravgsold, armourlbindata, armourlbin, bigcount
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
+  bigcount += 1
   
   #ignores non-bin auctions
   if item["bin"]:
@@ -305,6 +312,8 @@ def auc(item, isScan):
                 skipGem.append(item["uuid"])
         if "gemSaved" in locals():
           unlockedSlots = gemSaved[1]
+          if type(unlockedSlots) == list:
+            unlockedSlots = tuple(unlockedSlots)
         else:
           unlockedSlots = None
                 #this is needed as older items have slots unlocked but do not explicitly say so in the nbt data
@@ -477,7 +486,7 @@ def doEnded():
     logger.opt(exception=Exception).error("error occured while fetching ended auctions")
 
 def main():
-  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips, skinLookup, heldItemLookup, petlbindata
+  global lastUpdated, times, nameLookup, lastTry, LBIN, count, updateTime, volume, flips, skinLookup, heldItemLookup, petlbindata, petlbin, armourlbin, bigcount
   api = getApiPage(0)
   if api != None:
     if api['success'] and ( api["lastUpdated"] != lastUpdated ):
@@ -506,6 +515,7 @@ def main():
           json.dump(payload, file, ensure_ascii=False)
       #caching prices here yeah
       times = []
+      bigcount = 0
       LBIN = {}
       petlbin = {}
       armourlbin = {}
@@ -522,10 +532,18 @@ def main():
       times.sort()
       logger.info("Fetching Complete. "+str(len(times))+" items parsed, with a total time taken of "+str(datetime.datetime.now() - beforeparse)+".\nFastest time: "+str(times[0])+" | Median time: "+str(times[int(len(times) / 2)]) + " | Slowest time: "+str(times[-1]))
       logger.info("lastUpdated: "+str(lastUpdated))
+
+      logger.info("bigcount: "+str(bigcount))
+      logger.info("Items in LBIN: " + str(len(list(LBIN.keys()))))
+      logger.info("Items in petlbin: " + str(len(list(petlbin.keys()))))
+      logger.info("Items in armourlbin: " + str(len(list(armourlbin.keys()))))
       
       doEnded()
 
       try: #saving and organising data. calculating averages. not pretty.
+        with open("cache/lbin.json", "w") as f:
+          f.truncate(0)
+          json.dump(LBIN, f, indent=4, ensure_ascii=False)
         with open("cache/nameLookup.json", "w") as f:
           f.truncate(0)
           json.dump(nameLookup, f, indent=4, ensure_ascii=False)
