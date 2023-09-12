@@ -62,16 +62,18 @@ with open("data/pets/sold.pkl", "rb") as f:
   petavgsold = pickle.load(f)
 with open("data/pets/volume.pkl", "rb") as f:
   petvolume = pickle.load(f)
-  """
-with open("data/armour/lbindata.pkl", "rb") as f:
-  armourlbindata = pickle.load(f)
-with open("data/armour/sold.pkl", "rb") as f:
-  armouravgsold = pickle.load(f)
-with open("data/armour/volume.pkl", "rb") as f:
-  armourvolume = pickle.load(f)"""
-armourlbindata = {}
-armouravgsold = {}
-armourvolume = {}
+try:
+  with open("data/armour/lbindata.pkl", "rb") as f:
+    armourlbindata = pickle.load(f)
+  with open("data/armour/sold.pkl", "rb") as f:
+    armouravgsold = pickle.load(f)
+  with open("data/armour/volume.pkl", "rb") as f:
+    armourvolume = pickle.load(f)
+except Exception as e:
+  logger.opt(exception=e).error("error while loading")
+  armourlbindata = {}
+  armouravgsold = {}
+  armourvolume = {}
 
 #functions!! these should be mostly making sense
 def milliTime():
@@ -229,6 +231,8 @@ def auc(item, isScan):
           isRecombobulated = False
         
         armourStars = itemName.count("✪")
+        if armourStars < 5:
+          armourStars = 0
         if "➊" in itemName: armourStars = 6
         elif "➋" in itemName: armourStars = 7
         elif "➌" in itemName: armourStars = 8
@@ -317,8 +321,17 @@ def auc(item, isScan):
         else:
           unlockedSlots = None
                 #this is needed as older items have slots unlocked but do not explicitly say so in the nbt data
-
-        """if "Jaded Sorrow Chestplate" in itemName:
+        enchants = {
+          "Last Stand V": "LS5",
+          "Legion V": "L5",
+          "Wisdom V": "W5"
+        }
+        ultimateEnchant = None
+        for enchant in enchants:
+          if enchant in itemLore:
+            ultimateEnchant = enchants[enchant]
+        
+        """if "Bobbin' Time V" in itemLore:
           x_bytes = base64.b64decode(item["item_bytes"])
           x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
           itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
@@ -326,7 +339,7 @@ def auc(item, isScan):
           with open('cache/item.json', "w") as file:
             json.dump(x_object, file, ensure_ascii=False, indent=4)"""
 
-        armourInfo = (itemID, armourStars, skin, armourReforge, unlockedSlots, isRecombobulated, otherInfo)
+        armourInfo = (itemID, armourStars, skin, armourReforge, unlockedSlots, isRecombobulated, ultimateEnchant, otherInfo)
         #print(armourInfo)
         
       #then attributes seperately ¿
@@ -425,7 +438,7 @@ def auc(item, isScan):
         
 #scanning and parsing the "recently ended" auctions. items here don't show lore so nbt parsing is needed every time.
 def doEnded():
-  global volume, avgsold, recentSellers, petavgsold, petvolume
+  global volume, avgsold, recentSellers, petavgsold, petvolume, armouravgsold, armourvolume
   try:
     start_of_ended = datetime.datetime.now()
     recentlyEnded = requests.get("https://api.hypixel.net/skyblock/auctions_ended").json()
@@ -435,7 +448,7 @@ def doEnded():
     for item in recentlyEnded["auctions"]:
       x_bytes = base64.b64decode(item["item_bytes"])
       x_object = nbtlib.load(io.BytesIO(x_bytes), gzipped=True, byteorder="big")
-      itemID = x_object["i"][0]["tag"]["ExtraAttributes"]["id"]
+      itemID = str(x_object["i"][0]["tag"]["ExtraAttributes"]["id"])
       itemName = removeFormatting(x_object["i"][0]["tag"]["display"]["Name"])
       itemLore = "\n".join(x_object["i"][0]["tag"]["display"]["Lore"]) #formats the lore so it's like how its formatted for normal auctions (long string), instead of a list
       if "[Lvl" in itemName:
@@ -466,6 +479,94 @@ def doEnded():
         else: petavgsold[petInfo] = item["price"]
         #print(petInfo)
       #return to code which is not specific to pets
+      lastLine = itemLore.split("\n")[-1]
+      isCategoryArmour= False
+      armourParts = ["HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS"]
+      for part in armourParts:
+        if part in lastLine:
+          isCategoryArmour = True
+      if isCategoryArmour:
+        otherInfo = ""
+        if "§l§ka§r" in lastLine:
+          isRecombobulated = True
+        else:
+          isRecombobulated = False
+        
+        armourStars = itemName.count("✪")
+        if armourStars < 5:
+          armourStars = 0
+        if "➊" in itemName: armourStars = 6
+        elif "➋" in itemName: armourStars = 7
+        elif "➌" in itemName: armourStars = 8
+        elif "➍" in itemName: armourStars = 9
+        elif "➎" in itemName: armourStars = 10
+
+        if "⚚ " in itemName:
+          otherInfo = otherInfo + "|frag"
+
+        if " ✦" in itemName:
+            skin = x_object["i"][0]["tag"]["ExtraAttributes"]["skin"]
+        elif "✿ " in itemName: #goofed up code i guess- dye = skin = dye = skin but yeah so its always a skin now fuck you
+            skin = x_object["i"][0]["tag"]["ExtraAttributes"]["dye_item"]
+        else:
+          skin = None
+
+        armourReforges = ("Submerged", "Festive", "Jaded", "Loving", "Renowned", "Giant", "Ancient", "Mossy") #necrotic?
+        armourReforge = None
+        for aReforge in armourReforges:
+          if aReforge == itemName.split(" ")[0]:
+            armourReforge = aReforge
+
+        checkSlots = ("Necron's", "Storm's", "Goldor's", "Maxor's", "Sorrow", "Divan")
+        for slotItem in checkSlots:
+          if slotItem in itemName:
+              if x_object["i"][0]["tag"]["ExtraAttributes"].get("gems"):
+                gemObj = x_object["i"][0]["tag"]["ExtraAttributes"]["gems"]
+                gemSaved = []
+                gemSaved.append([])
+                for slot in gemObj:
+                  if slot != "unlocked_slots" and "_gem" not in slot:
+                    if "UNIVERSAL" in slot or "DEFENSIVE" in slot or "COMBAT" in slot or "MINING" in slot or "OFFENSIVE" in slot:
+                      gemType = gemObj[slot+"_gem"]
+                      if "quality" in gemObj[slot]:
+                        gemSaved[0].append(gemObj[slot]["quality"] + "_" + gemType)
+                      else:
+                        gemSaved[0].append(gemObj[slot] + "_" + gemType)
+                    else:
+                      if "quality" in gemObj[slot]:
+                        gemSaved[0].append(gemObj[slot]["quality"] + "_" + list(slot.upper().split("_"))[0])
+                      else:
+                        gemSaved[0].append(gemObj[slot] + "_" + list(slot.upper().split("_"))[0])
+                gemSaved.append([])
+                if gemObj.get("unlocked_slots"):
+                  for slot in gemObj["unlocked_slots"]:
+                    gemSaved[1].append(str(slot))
+              else:
+                gemSaved = [None, None]
+        if "gemSaved" in locals():
+          unlockedSlots = gemSaved[1]
+          if type(unlockedSlots) == list:
+            unlockedSlots = tuple(unlockedSlots)
+        else:
+          unlockedSlots = None
+                #this is needed as older items have slots unlocked but do not explicitly say so in the nbt data
+        enchants = {
+          "Last Stand V": "LS5",
+          "Legion V": "L5",
+          "Wisdom V": "W5"
+        }
+        ultimateEnchant = None
+        for enchant in enchants:
+          if enchant in itemLore:
+            ultimateEnchant = enchants[enchant]
+        armourInfo = (itemID, armourStars, skin, armourReforge, unlockedSlots, isRecombobulated, ultimateEnchant, otherInfo)
+        if armourInfo in armourvolume: armourvolume[armourInfo] = armourvolume[armourInfo] + 1
+        else: armourvolume[armourInfo] = 0
+        if armourInfo in armouravgsold: armouravgsold[armourInfo] = int(armouravgsold[armourInfo] * 0.96 + item["price"] * 0.04)
+        else: armouravgsold[armourInfo] = item["price"]
+
+
+      
       #dictionary of the most 1000 recent sellers. may be used for something in the future.
       recentSellers.append(item["seller"])
       if itemID in volume:
@@ -571,6 +672,8 @@ def main():
         with open("data/lbin.json", "w") as lbinfile:
           lbinfile.truncate(0)
           json.dump(avglbin, lbinfile, indent=2, ensure_ascii=False)
+
+        """__--___---___--__PETS STUFF IS HERE____--___--___- """
         with open("data/pets/lbindata.pkl", "rb") as petlbinpkl:
           petlbindata = pickle.load(petlbinpkl)
         for petInfo in petlbin:
@@ -601,6 +704,42 @@ def main():
         with open("data/pets/sold.pkl", "wb") as petssoldfile:
           petssoldfile.truncate(0)
           pickle.dump(petavgsold, petssoldfile)
+        
+        """__--___---___--ARMOUR STUFF IS HERE____--___--___- """
+        #(add armour stuff here)
+        with open("data/armour/lbindata.pkl", "rb") as armourlbinpkl:
+          armourlbindata = pickle.load(armourlbinpkl)
+        for armourInfo in armourlbin:
+          if armourInfo in armourlbindata:
+            armourlbindata[armourInfo] = int(armourlbindata[armourInfo] - armourlbindata[armourInfo]/500 + armourlbin[armourInfo]/500)
+          else:
+            armourlbindata[armourInfo] = armourlbin[armourInfo]
+        with open("data/armour/lbindata.json", "w") as armourlbinfile:
+          armourlbinfile.truncate(0)
+          armourlbinfile.write(str(armourlbindata))
+        with open("data/armour/lbindata.pkl", "wb") as armourlbinpkl:
+          armourlbinpkl.truncate(0)
+          pickle.dump(armourlbindata, armourlbinpkl)
+        for item in armourvolume:
+          if armourvolume[item] < 0:
+            armourvolume[item] = 0
+          else:
+            armourvolume[item] = armourvolume[item] - armourvolume[item]/1440
+        with open("data/armour/volume.json", "w") as f:
+          f.truncate(0)
+          f.write(str(armourvolume))
+        with open("data/armour/volume.pkl", "wb") as armourvolumepkl:
+          armourvolumepkl.truncate(0)
+          pickle.dump(armourvolume, armourvolumepkl)
+        with open("data/armour/sold.json", "w") as armoursoldpkl:
+          armoursoldpkl.truncate(0)
+          armoursoldpkl.write(str(armouravgsold))
+        with open("data/armour/sold.pkl", "wb") as armoursoldfile:
+          armoursoldfile.truncate(0)
+          pickle.dump(armouravgsold, armoursoldfile)
+
+
+        """__--___---___--OTHER STUFF IDK STUFF IS HERE____--___--___- """
         for item in volume:
           if volume[item] < 0:
             volume[item] = 0
