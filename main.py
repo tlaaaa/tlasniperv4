@@ -35,6 +35,8 @@ count = 0
 recentSellers = []
 flips = []
 petlbin = {}
+armourlbin = {}
+skipGem = []
 
 #loading saved variables from cache/data
 #generally, cache is just lookup dictionaries, which speed up the program, reducing the need for nbt decoding
@@ -59,12 +61,16 @@ with open("data/pets/sold.pkl", "rb") as f:
   petavgsold = pickle.load(f)
 with open("data/pets/volume.pkl", "rb") as f:
   petvolume = pickle.load(f)
+  """
 with open("data/armour/lbindata.pkl", "rb") as f:
   armourlbindata = pickle.load(f)
 with open("data/armour/sold.pkl", "rb") as f:
   armouravgsold = pickle.load(f)
 with open("data/armour/volume.pkl", "rb") as f:
-  armourvolume = pickle.load(f)
+  armourvolume = pickle.load(f)"""
+armourlbindata = {}
+armouravgsold = {}
+armourvolume = {}
 
 #functions!! these should be mostly making sense
 def milliTime():
@@ -125,7 +131,7 @@ async def fetchAll(pages):
 #auction parsing, slightly differs depending on whether it's just scanning (looking for flips) or not scanning (calculating more price data)
 def auc(item, isScan):
   #probably issues with needing this many global variables in this function. what can you do.
-  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume, gemLookup
+  global nameLookup, LBIN, lastUpdated, count, avglbin, flips, skinLookup, heldItemLookup, petlbindata, petlbin, avgsold, petavgsold, petvolume, gemLookup, armourvolume, armouravgsold, armourlbindata, armourlbin
   #logger.info(item["item_name"])
   #print(item["item_bytes"])
   
@@ -256,7 +262,7 @@ def auc(item, isScan):
 
         checkSlots = ("Necron's", "Storm's", "Goldor's", "Maxor's", "Sorrow", "Divan")
         for slotItem in checkSlots:
-          if slotItem in itemName:
+          if slotItem in itemName and item["uuid"] not in skipGem:
             if " ✦" not in itemName:
               gemLine = itemLore.split("\n\n")[0].split("\n")[-1]
             else:
@@ -294,6 +300,9 @@ def auc(item, isScan):
               mcfc.echo(gemLine.replace("§", "&") + "&r " +str(gemSaved))
               if int(x_object["i"][0]["tag"]["ExtraAttributes"]["timestamp"].split(" ")[0].split("/")[-1]) > 21:
                 gemLookup[gemLine] = gemSaved
+              else:
+                #print("OLD ITEM OLD ITEM SLOWING EVERYTHING DOWN")
+                skipGem.append(item["uuid"])
         if "gemSaved" in locals():
           unlockedSlots = gemSaved[1]
         else:
@@ -390,6 +399,7 @@ def auc(item, isScan):
             LBIN[itemID] = startingBid
         else:
           LBIN[itemID] = startingBid
+        
         if petInfo is not None:  
           if petInfo not in petlbin:
             petlbin[petInfo] = startingBid
@@ -397,7 +407,11 @@ def auc(item, isScan):
             if petlbin[petInfo] > startingBid:
               petlbin[petInfo] = startingBid
         if armourInfo is not None:
-          pass
+          if armourInfo not in armourlbin:
+            armourlbin[armourInfo] = startingBid
+          else:
+            if armourlbin[armourInfo] > startingBid:
+              armourlbin[armourInfo] = startingBid
           
         
 #scanning and parsing the "recently ended" auctions. items here don't show lore so nbt parsing is needed every time.
@@ -493,6 +507,8 @@ def main():
       #caching prices here yeah
       times = []
       LBIN = {}
+      petlbin = {}
+      armourlbin = {}
       beforeparse = datetime.datetime.now()
       ####REMOVE AFTER WORKING
       with open('cache/api.json', "w") as file:
