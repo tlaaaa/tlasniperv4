@@ -352,67 +352,66 @@ def auc(item, isScan):
         count = count + 1
         itemValue = 0
         flipFound = False
-        if petInfo is not None:
-          if petInfo in petlbindata and petInfo in petlbin and petInfo in petavgsold and petInfo in petvolume:
-            #printing information for debug idk
-            petLbinProfit = petlbin[petInfo] - startingBid
-            petAvgLbinProfit = petlbindata[petInfo] - startingBid
-            petAvgSoldProfit = petavgsold[petInfo]-startingBid
-            """print(str(petInfo)+": "+formatNumber(startingBid))
-            print("lbin "+formatNumber(petlbin[petInfo])+" ("+formatNumber(petLbinProfit)+")")
-            print("avglbin "+formatNumber(petlbindata[petInfo])+" ("+formatNumber(petAvgLbinProfit)+")")
-            print("avgsold "+formatNumber(petavgsold[petInfo])+" ("+formatNumber(petAvgSoldProfit)+")")
-            print("volume "+str(int(petvolume[petInfo]*100)/100))"""
-            estimatedTime = 24 / petvolume[petInfo]
-            flipValue = petLbinProfit / estimatedTime
-            #print(str(petInfo))
-            #print("Estimated time to sell: "+str(estimatedTime) + " Profit: "+ str(petLbinProfit*0.965) + " Flip Value: "+str(flipValue)+" coins/hour")
-            
-            if petAvgSoldProfit > 500_000 and petvolume[petInfo] > 6: #<< increase volume later maybe or just filter them more?
-              if petAvgSoldProfit/petavgsold[petInfo] > 0.08:
-                if petLbinProfit > 500_000:
-                  if petLbinProfit/petlbin[petInfo] > 0.08:
-                    #i guess it's a flip?
-                    flipFound = True
-                    if petlbin[petInfo] > petavgsold[petInfo] * 1.2:
-                      target = petavgsold[petInfo]
-                    else:
-                      target = petlbin[petInfo] * 0.998 - 1000
-                    target = int(int(target / 10_000) * 10_000 - 1)
-                    flips.append({
+#need to add gemstones thing, neeed an avg bazaar endpoint to help calc value or something
+        try: 
+          if petInfo is not None:
+            if petInfo in petlbindata and petInfo in petlbin and petInfo in petavgsold and petInfo in petvolume:
+              calcindex = str(petInfo)
+              calclbin = petlbin[petInfo]
+              calcavgsold = petavgsold[petInfo]
+              calcavglbin = petlbindata[petInfo]
+              calcvolume = petvolume[petInfo]
+          elif armourInfo is not None:
+            if armourInfo in armourlbindata and armourInfo in armourlbin and armourInfo in armouravgsold and armourInfo in armourvolume:
+              calcindex = str(armourInfo)
+              calclbin = armourlbin[armourInfo]
+              calcavgsold = armouravgsold[armourInfo]
+              calcavglbin = armourlbindata[armourInfo]
+              calcvolume = armourvolume[armourInfo]
+          else:
+            if itemID in LBIN and itemID in avgsold and itemID in avglbin and itemID in volume:
+              calcindex = itemID
+              calclbin = LBIN[itemID]
+              calcavgsold = avgsold[itemID]
+              calcavglbin = avglbin[itemID]
+              calcvolume = volume[itemID]
+          if "calcindex" in locals():
+            if calcvolume > 0:
+              lbinprofit = calclbin - startingBid
+              avglbinprofit = calcavglbin - startingBid
+              avgsoldprofit = calcavgsold - startingBid
+              estimatedTime = 24 / calcvolume
+              flipValue = lbinprofit / estimatedTime
+              if lbinprofit > 100_000:
+                print("~-~-~-~-~-~-~-~-~-~-~-~-~-~-")
+                print(calcindex + ": "+ formatNumber(startingBid))
+                print("LBIN: "+formatNumber(calclbin) + "(" + formatNumber(lbinprofit) + ")")
+                print("AVG_LBIN: "+formatNumber(calcavglbin) + "(" + formatNumber(avglbinprofit) + ")")
+                print("AVG_SOLD: "+formatNumber(calcavgsold) + "(" + formatNumber(avgsoldprofit) + ")")
+                print("VOLUME: "+str(round(calcvolume, 2)))
+                print("EST_TIME: " + str(round(estimatedTime, 2)))
+                print("VALUE: "+formatNumber(flipValue) + "("+str(round(flipValue/lbinprofit*100, 2))+"%)")
+              if lbinprofit > 0 and avglbinprofit > 0 and avgsoldprofit > 0:
+                if lbinprofit + avglbinprofit + avgsoldprofit > 1_000_000:
+                  if calcvolume > 10:
+                    if lbinprofit / startingBid > 0.06:
+                      if calclbin > calcavgsold * 1.2:
+                        target = calcavgsold
+                      else:
+                        target = calclbin * 0.998 - 1000
+                      target = int(int(target / 10_000) * 10_000 - 1)
+                      flips.append({
                       "itemName": itemName,
                       "id": item["uuid"],
                       "startingBid": startingBid,
                       "target": target,
                       "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
-                      "notes": "PET. CAUTION. petInfo:"+str(petInfo)+"\nVolume:"+str(int(petvolume[petInfo]*100)/100),
+                      "notes": "Index:"+str(calcindex)+"\nVolume:"+str(int(calcvolume*100)/100),
                       "rarity": item["tier"],
                     })
-        elif item["category"] == "armor":
-          
-          pass
-        
-        if flipFound is not True:
-          if itemID in avglbin and itemID in LBIN and itemID in volume and itemID in avgsold:
-            profit = avglbin[itemID] - startingBid
-            lbinProfit = LBIN[itemID] - startingBid
-            #where did those VV numbers come from? my head. sorry. maybe more fine tuning later.
-            if profit > 500_000 and volume[itemID] > 20 and lbinProfit > 400_000 and profit/avglbin[itemID] > 0.08 and lbinProfit/LBIN[itemID] > 0.07 and avgsold[itemID]*2 > avglbin[itemID]:
-              if LBIN[itemID] > avglbin[itemID] * 1.2:
-                target = (LBIN[itemID] + avglbin[itemID])/2
-              else:
-                target = LBIN[itemID] * 0.998 - 1000
-              target = int(int(target / 10_000) * 10_000 - 1)
-              print(itemName + " /viewauction "+item["uuid"]+"\nprice: "+formatNumber(startingBid)+" value apparently: "+formatNumber(avglbin[itemID])+" profit: "+formatNumber(profit)+"\nlowest bin: "+formatNumber(LBIN[itemID])+" difference from lbin: "+formatNumber(LBIN[itemID]-startingBid)+" volume: "+str(volume[itemID]) + " target: "+str(target))
-              flips.append({
-                "itemName": itemName,
-                "id": item["uuid"],
-                "startingBid": startingBid,
-                "target": target,
-                "purchaseAt": json.dumps(datetime.datetime.fromtimestamp(int((item["start"] + 19000) / 1000)), default=handler).replace('"',"") + "Z",
-                "notes": "",
-                "rarity": item["tier"],
-              })
+                    
+        except Exception as e:
+          logger.opt(exception=e).error("Exception raised while calculating flip.")
     
     else:
         #if not scanning, just see if there is a cheaper one on ah, if not set it as lbin.
